@@ -7,7 +7,16 @@ authors = [
     { name = "michiTrader", email = "iden.c63@gmail.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "bokeh>=3.8.0",
+    "ipykernel>=6.30.1",
+    "numba>=0.61.2",
+    "numpy>=2.2.6",
+    "pandas>=2.3.2",
+    "pathlib>=1.0.1",
+    "pybit>=5.11.0",
+    "tqdm>=4.67.1",
+]
 
 [build-system]
 requires = ["uv_build>=0.8.15,<0.9.0"]

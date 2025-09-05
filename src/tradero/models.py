@@ -1,0 +1,656 @@
+
+import numpy as np
+import pandas as pd
+from typing import Dict
+from abc import ABC, abstractclassmethod
+import pandas as pd
+import asyncio
+from .util import timeframe2minutes
+"""
+    Una Sesh debe tener las siguientes funciones: 
+        DATA: get_kline, get_data, get_last_price, get_time
+        CONFIGURATION: set_margin_mode, set_leverage, set_time_zone
+        INFO: get_account_info, get_balance, get_position_status, get_all_orders, get_leverage
+        TRADING: sell, sell, close_position, set_trading_stop, cancel_all_orders
+    Una Sesh debe tener las siguientes propiedades: 
+        time_zone, equity, total_equity, 
+"""
+
+class _Array(np.ndarray):
+    """Wrapper para arrays numpy que mantiene el índice del DataFrame original."""
+    def __new__(cls, input_array, index=None):
+        obj = np.asarray(input_array).view(cls)
+        obj.index = index
+        return obj
+
+    def __array_finalize__(self, obj):
+        if obj is None:
+            return
+        self.index = getattr(obj, 'index', None)
+
+    @property
+    def s(self):
+        """Convierte el array actual a una Serie de pandas con el índice almacenado."""
+        return pd.Series(self, index=self.index)
+
+class DataOHLC:
+    """
+    Acceso optimizado a datos OHLCV usando NumPy para operaciones rápidas.
+    Proporciona acceso a columnas como arrays numpy con caché para mejor performance.
+    """ 
+    __slots__ = ["symbol", "__content", "__len", "__cache", "__arrays", "__timeframe", "__minutes", "__kwargs"]
+
+    def __init__(self, content: Dict[str, list], timeframe, symbol=None, **kwargs):
+        """ content: dict con las culmas o h l c v datetime"""
+        self.__cache = {}
+        self.__content = None # en update()
+        self.__len = None # en update()
+        self.__arrays: Dict[str, _Array] = {}
+        self.update(content)
+        self.__timeframe = timeframe
+        self.symbol = symbol 
+
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    def update(self, content: Dict[str, list]):
+        """Actualiza los arrays internos desde el DataFrame."""
+        self.__cache = {}
+        self.__content = content.copy()
+        self.__arrays["__index"] = np.array(content['datetime'], dtype="datetime64[ms]")
+        self.__arrays["Open"] = np.array(content["Open"])
+        self.__arrays["High"] = np.array(content["High"])
+        self.__arrays["Low"] = np.array(content["Low"])
+        self.__arrays["Close"] = np.array(content["Close"])
+        self.__arrays["Volume"] = np.array(content["Volume"])
+        self.__arrays["Turnover"] = np.array(content["Turnover"])
+
+        self.__len = len(self.__arrays["__index"])
+
+    def resample(self, timeframe: str) -> 'DataOHLC':
+        """
+        Resamplea los datos a un intervalo diferente.
+        """
+        freq = timeframe
+        
+        df = pd.DataFrame(self.__content.copy()).set_index('datetime')
+        df.sort_index(inplace=True)
+
+        # Resamplear OHLC exactamente como resample_ohlc_indicator
+        resampler = df.resample(freq)
+        ohlc_resampled = resampler.agg({
+            'Open': 'first',
+            'High': 'max', 
+            'Low': 'min',
+            'Close': 'last',
+            'Volume': 'sum',
+            'Turnover': 'sum',
+        })
+
+        # Convertir a content dict
+        dict_with_data_resampled = ohlc_resampled.dropna().reset_index().to_dict(orient="list")
+        return DataOHLC(
+            content = dict_with_data_resampled, 
+            timeframe = freq, 
+            symbol = self.symbol,
+        )
+
+    def copy(self) -> 'DataOHLC':
+        """Crea una copia profunda del objeto Data."""
+        return DataOHLC(self.__content.copy(), self.__timeframe, self.symbol)
+
+    def __get_array(self, key: str) -> _Array:
+        """Obtiene un array desde el caché o lo carga si no está."""
+        return self.__arrays[key]
+
+    def __len__(self) -> int:
+        """Longitud actual de los datos."""
+        return self.__len
+
+    def __repr__(self) -> str:
+        # i = min(self.__len, len(self.__df)) - 1
+        i = self.__len - 1
+        start_index = self.index[0]
+        end_index = self.index[i]
+        # items = ', '.join(f'{k}={v:.2f}' if isinstance(v, (float, np.floating)) else f'{k}={v}'
+        #                   for k, v in self.__df.iloc[i].items())
+        return f"<'{self.symbol}': timeframe={self.__timeframe}, len={self.__len}, start='{start_index}', end='{end_index}')>"
+
+    def __getitem__(self, key):
+        """Dictionary-style access to arrays with support for slicing."""
+        if isinstance(key, slice):
+            # Evitar crear un nuevo objeto si el slice es completo
+            if key.start is None and key.stop is None and key.step is None:
+                return self
+            # Create a new _Data object with sliced data
+            # sliced_dict = {col: arr[key] for col, arr in self.__content.items()}
+            sliced_dict = {}
+            sliced_dict['datetime'] = self.index[key]
+            sliced_dict['Open'] = self.Open[key]
+            sliced_dict['High'] = self.High[key]
+            sliced_dict['Low'] = self.Low[key]
+            sliced_dict['Close'] = self.Close[key]
+            sliced_dict['Volume'] = self.Volume[key]
+            sliced_dict['Turnover'] = self.Turnover[key]
+
+            data_obj = DataOHLC(sliced_dict, self.__timeframe, self.symbol)
+            return data_obj
+        elif isinstance(key, (int, np.integer)):
+            # Return a dictionary with values at the specified index
+            end_point = key+1 or None
+            sliced_dict = {}
+            sliced_dict['datetime'] = self.index[key:end_point]
+            sliced_dict['Open'] = self.Open[key:end_point]
+            sliced_dict['High'] = self.High[key:end_point]
+            sliced_dict['Low'] = self.Low[key:end_point]
+            sliced_dict['Close'] = self.Close[key:end_point]
+            sliced_dict['Volume'] = self.Volume[key:end_point]
+            sliced_dict['Turnover'] = self.Turnover[key:end_point]  
+
+            data_obj = DataOHLC(sliced_dict, self.__timeframe, self.symbol)
+            return data_obj
+        else:
+            # Handle string keys (column names)
+            return self.__get_array(key)
+
+    def __getattr__(self, key) -> _Array:
+        """Acceso tipo atributo a las columnas OHLCV."""
+        try:
+            return self.__get_array(key)
+        except KeyError:
+            raise AttributeError(f"Columna '{key}' no encontrada") from None
+
+    @property
+    def timeframe(self) -> str:
+        return self.__timeframe
+
+    @property
+    def minutes(self) -> int:
+        cache_key = f'minutes_tf'
+        if cache_key not in self.__cache: # actualiza el caché
+            self.__cache[cache_key] = timeframe2minutes(self.__timeframe)
+        return  self.__cache[cache_key]
+
+    @property
+    def content(self) -> dict:
+        """Devuelve el DataFrame."""
+        return self.__content
+
+    @property
+    def df(self) -> pd.DataFrame:
+        """Devuelve el DataFrame."""
+        cache_key = 'df'
+        if cache_key not in self.__cache: # actualiza el caché
+            self.__cache[cache_key] = pd.DataFrame(self.__content).set_index("datetime")
+        return  self.__cache[cache_key]
+        # return pd.DataFrame(self.__content).set_index("datetime")
+
+    @property 
+    def klines(self) -> np.ndarray: 
+        cache_key = f'klines'
+        if cache_key not in self.__cache:
+            timestamps_ms = (self.df.index.values.astype(np.int64) // 10**6).reshape(-1, 1)
+            data_values = self.df.to_numpy()
+            self.__cache[cache_key] = np.hstack([timestamps_ms, data_values])
+        return self.__cache[cache_key]  
+
+    @property
+    def Open(self) -> _Array:
+        """Precios de apertura como array numpy."""
+        return self.__get_array('Open')
+
+    @property
+    def High(self) -> _Array:
+        """Precios máximos como array numpy."""
+        return self.__get_array('High')
+
+    @property
+    def Low(self) -> _Array:
+        """Precios mínimos como array numpy."""
+        return self.__get_array('Low')
+
+    @property
+    def Close(self) -> _Array:
+        """Precios de cierre como array numpy."""
+        return self.__get_array('Close')
+
+    @property
+    def Volume(self) -> _Array:
+        """Volúmenes como array numpy."""
+        return self.__get_array('Volume')
+
+    @property
+    def Turnover(self) -> _Array:
+        """Volúmenes como array numpy."""
+        return self.__get_array('Turnover')
+
+    @property
+    def index(self) -> pd.Index:
+        """Índice temporal del DataFrame."""
+        return self.__get_array('__index')
+
+    @property
+    def empty(self):
+        """Devuelve True si no hay datos disponibles."""
+        return self.__len == 0
+
+
+class Sesh(ABC):  
+    """Sesión de trading para Bybit con funciones para operar"""
+    
+    def _process_kline_data_to_frame(self, klines, tz:str = None) -> DataOHLC:
+        """
+            Procesa datos de velas (klines) y los convierte a un DataFrame de pandas.
+            
+            Args:
+                response: Respuesta de la API con datos de velas
+                timezone: Zona horaria para convertir timestamps (default: UTC)
+                
+            Returns:
+                DataFrame con datos de velas procesados
+        """
+        # Extraer datos timezone general de la session si esta configurado
+        tz = self._tz if self._tz else (tz if tz else "UTC")
+        
+        # Crear dataframe con los datos de lista
+        df = pd.DataFrame(klines,
+            columns = ["datetime", "Open", "High", "Low", "Close", "Volume", "turnover"] )
+
+        # Convertir columnas a float
+        df = df.astype(float) 
+
+        # Setear indice a datetime
+        df["datetime"] = pd.to_datetime(df["datetime"], unit="ms", utc=True)
+        df.set_index("datetime", inplace=True) 
+        # Convertir zona horaria
+        if tz != "UTC":
+            df.index = df.index.tz_convert(tz)
+        df.index = df.index.tz_localize(None)
+
+        # ordenar por indices
+        df = df.sort_index(ascending=True).drop_duplicates()
+
+        return DataOHLC(df)
+    
+    async def run_live(self, *strategy : 'Strategy',
+            init_sleep:float = 0.00, 
+            on_data_sleep:float = 0.1,
+            ):
+        """ Ejecuta múltiples estrategias en paralelo """
+
+        # Instanciar cada estretegia con la session
+        strategy_instances = [s().set_sesh(sesh=self) for s in strategy]
+        
+        async def _execute_strategy(strategy, 
+                    init_sleep = init_sleep, 
+                    on_data_sleep = on_data_sleep):
+            """ """
+            def _close_protocol():
+                print(f"Estrategia {self.__qualname__} detenida.")
+
+            try:
+                while True:
+                    await strategy.init()
+                    await asyncio.sleep(init_sleep) 
+                    
+                    await strategy.on_data()
+                    await asyncio.sleep(on_data_sleep)
+                await strategy.on_exit()
+            except KeyboardInterrupt:
+                _close_protocol()
+
+        # Ejecutar todas las estrategias concurrentemente
+        return await asyncio.gather(*[_execute_strategy(s) for s in strategy_instances], return_exceptions=True)
+
+    @property
+    async def total_equity(self):
+        pass
+    
+    @property
+    def time_zone(self):
+        pass
+
+    @property
+    def equity(self):
+        pass
+
+    """ DATA """
+    @abstractclassmethod
+    async def get_kline(self, symbol: str, timeframe: str = "1D", start: str = None, 
+        end: str = None, limit: int = None, category:"str" = "linear",
+        ) -> list:
+        """
+            Obtiene datos de klines de manera asíncrona con paginación automática.
+            
+            Args:
+                symbol: Par de trading (ej: 'BTCUSDT')
+                timeframe: timeframe de tiempo (ej: '1m', '1h', '1D')
+                start: Fecha inicial en formato 'YYYY-MM-DD'
+                end: Fecha final en formato 'YYYY-MM-DD'
+                limit: Número máximo de klines a retornar
+        """
+        pass
+    
+    @abstractclassmethod
+    async def get_data(self, symbol, timeframe, start=None, end=None, 
+        limit=None, category="linear", tz:str=None
+        ) -> DataOHLC:
+        """
+            (bybit) Obtiene y procesa datos históricos de velas (klines) para un símbolo específico.
+
+            Args:
+                session: Sesión activa de la API
+                category: Categoría del mercado (ej: 'linear', 'spot')
+                symbol: Símbolo del par de trading
+                timeframe: timeframe de tiempo para las velas. Puede ser string (ej: '1m', '1h') o minutos
+                start: str/timestamp inicial para los datos (opcional)
+                end: str/timestamp final para los datos (opcional)
+                limit: Número máximo de velas a retornar (opcional)
+                tz: Zona horaria para convertir timestamps (default: UTC)
+
+            Returns:
+                DataFrame de pandas con los datos de velas procesados
+        """
+        pass
+
+    # @abstractclassmethod
+    # async def _get_ticker(self, symbol) -> dict:
+        # """
+        #     Obtiene los detalles del ticker de un par de trading.
+
+        #     Args:
+        #         session: Sesión activa de la API
+        #         category: Categoría del mercado (ej: 'linear','spot')
+        #         symbol: Símbolo del par de trading
+
+        #     Returns:
+        #         dict: Detalles del ticker del par de trading
+        # """
+        # pass
+
+    @abstractclassmethod
+    async def get_last_price(self, symbol) -> float:
+        """
+            Obtiene el último precio de un par de trading.
+
+            Args:
+                session: Sesión activa de la API
+                category: Categoría del mercado (ej: 'linear','spot')
+                symbol: Símbolo del par de trading
+
+            Returns:
+                float: Último precio del par de trading
+        """
+        pass
+
+    @abstractclassmethod
+    async def get_time(self, tz: str = None) -> pd.Timestamp:
+        pass
+
+ 
+    """ CONFIGURATION """
+    
+    @abstractclassmethod
+    async def set_time_zone(self, tz: str):
+        pass
+    
+    @abstractclassmethod
+    async def set_leverage(self, symbol, leverage: int = 1):
+        ""
+        """
+            Establece el nivel de margen (leverage) para un par de trading.
+            Args:
+                symbol: Símbolo del par de trading
+                buy_leverage: Nivel de margen para operaciones de compra (opcional)
+                sell_leverage: Nivel de margen para operaciones de venta (opcional)
+        """
+        pass
+    
+    @abstractclassmethod
+    async def set_margin_mode(self, margin_mode: str = "insolated"):
+        """ 
+            Establece el modo de margen para la cuenta.
+            Args:
+                margin_mode: Modo de margen a establecer ('insolated'/'cross'/'portfolio')
+            Returns:
+                dict: Respuesta de la API con el resultado de la operación
+        """
+        pass
+
+    """ INFO """
+    @abstractclassmethod
+    async def get_account_info(self):
+        """
+            Obtiene información de la cuenta de trading.
+        """
+        pass
+    
+    @abstractclassmethod
+    async def get_balance(self, coin: str = "USDT", account_type: str = None):
+        """
+            Obtiene el balance de una moneda específica en la cuenta.
+            
+            Args:
+                coin: Símbolo de la moneda (default: USDT)
+                account_type: Tipo de cuenta a consultar (default: self.account_type)
+                
+            Returns:
+                dict: Balance y detalles de la moneda consultada
+        """
+        pass
+    
+    @abstractclassmethod
+    async def get_position_status(self, symbol) -> dict:
+        """
+            Obtiene el estado de la posición actual para un par de trading.
+
+            Args:
+                symbol: Símbolo del par de trading
+
+            Returns:
+                dict: Estado de la posición actual ({"size": size, "side": side})
+        """
+        pass
+    
+    @abstractclassmethod
+    async def get_all_orders(self, symbol) -> list:
+        """
+            Obtiene el historial de ordenes (en forma de diccionario) referente a un par de trading.
+        """
+        pass
+    
+    # @abstractclassmethod
+    # async def _get_order(self, symbol, order_id, max_attempts=15, wait_time=0.5) -> dict:
+        # """
+        #     Obtiene los detalles de una orden (como diccionario) para un ID de orden dado usando dos métodos de búsqueda:
+        #     1. Primero intenta encontrar la orden en las órdenes abiertas actualmente (más rápido)
+        #     2. Si no se encuentra, busca en todo el historial de órdenes con múltiples intentos
+            
+        #     Args:
+        #         session: Sesión activa de la API
+        #         category: Categoría del mercado (ej: 'linear', 'spot')
+        #         symbol: Símbolo del par de trading
+        #         order_id: ID de la orden a buscar
+        #         max_attempts: Número máximo de reintentos al buscar en el historial (default: 15)
+        #         wait_time: Tiempo de espera entre reintentos en segundos (default: 0.5)
+                
+        #     Returns:
+        #         dict: Detalles de la orden si se encuentra
+                
+        #     Raises:
+        #         ValueError: Si la orden no se encuentra después de max_attempts
+        # """
+        # pass
+    
+    @abstractclassmethod
+    async def get_leverage(self, symbol: str) -> int:
+        """
+            Obtiene el nivel de apalancamiento (leverage) para un par de trading.
+            Args:
+                symbol: Símbolo del par de trading
+            Returns:
+                float: Nivel de apalancamiento del par de trading, o 0.0 si no se encuentra posición.
+        """
+        pass
+
+    """ Trading """
+    
+    # @abstractclassmethod
+    # async def _place_order(self,
+        #             symbol,
+        #             side, 
+        #             qty,  
+        #             price=None, 
+        #             sl_price=None, 
+        #             tp_price=None, 
+        #             pct_sl=None, 
+        #             pct_tp=None, 
+        #             time_in_force="GTC",
+        #             ) -> dict:
+        # """
+        #     Coloca una orden de trading con las siguientes características:
+            
+        #     - Permite establecer órdenes de mercado, límite o stop
+        #     - Los stop loss (SL) y take profit (TP) se especifican en precio absoluto
+        #     - No acepta SL/TP en porcentajes directamente
+        #     - Configurable para cualquier par de trading y categoría
+        #     - El time in force por defecto es GTC (Good Till Cancel)
+            
+        #     Args:
+        #         session: Sesión activa de trading
+        #         category (str): Categoría del par (linear/inverse)
+        #         symbol (str): Par de trading (ej: 'BTCUSDT')
+        #         side (str): Dirección de la orden ('Buy'/'Sell') 
+        #         order_type (str): Tipo de orden ('market'/'limit'/'stop')
+        #         size (float): Tamaño de la posición
+        #         price (float, optional): Precio límite para órdenes límite
+        #         stop_price (float, optional): Precio de activación para órdenes stop
+        #         sl (float, optional): Precio del stop loss
+        #         tp (float, optional): Precio del take profit
+        #         time_in_force (str): Validez de la orden (default: 'GTC')
+
+        #     Returns:
+        #         dict: Respuesta de la orden colocada
+        # """ 
+        # pass
+    
+    @abstractclassmethod
+    async def sell(self,
+            symbol: str,
+            size: float,
+            price: float = None,
+            sl_price: float = None,
+            tp_price: float = None,
+            pct_sl: float = None,
+            pct_tp: float = None,
+            time_in_force: str ="GTC",
+            ) -> dict:    
+        """
+            Coloca una orden de compra con las siguientes características:
+            
+            Args:
+                session: Sesión activa de trading
+                category (str): Categoría del par (linear/inverse)
+                symbol (str): Par de trading (ej: 'BTCUSDT')
+                qty (float): Cantidad a comprar
+                price (float, optional): Precio límite para órdenes límite
+                sl_price (float, optional): Precio absoluto del stop loss
+                tp_price (float, optional): Precio absoluto del take profit  
+                pct_sl (float, optional): Porcentaje de stop loss relativo al precio de entrada
+                pct_tp (float, optional): Porcentaje de take profit relativo al precio de entrada
+
+            Returns:
+                dict: Información de la orden ejecutada
+        """
+        pass
+    
+    @abstractclassmethod
+    async def buy(self,
+            symbol: str,
+            size: float,
+            price: float = None,
+            sl_price: float = None,
+            tp_price: float = None,
+            pct_sl: float = None,
+            pct_tp: float = None,
+            time_in_force: str ="GTC",
+            ) -> dict:    
+        """
+            Coloca una orden de compra con las siguientes características:
+            
+            Args:
+                session: Sesión activa de trading
+                category (str): Categoría del par (linear/inverse)
+                symbol (str): Par de trading (ej: 'BTCUSDT')
+                qty (float): Cantidad a comprar
+                price (float, optional): Precio límite para órdenes límite
+                sl_price (float, optional): Precio absoluto del stop loss
+                tp_price (float, optional): Precio absoluto del take profit  
+                pct_sl (float, optional): Porcentaje de stop loss relativo al precio de entrada
+                pct_tp (float, optional): Porcentaje de take profit relativo al precio de entrada
+
+            Returns:
+                dict: Información de la orden ejecutada
+        """
+        pass
+    
+    @abstractclassmethod
+    async def close_position(self, symbol):
+        pass
+    
+    @abstractclassmethod
+    async def set_trading_stop(self, 
+                        symbol: str,
+                        tp_price: float = None,
+                        sl_price: float = None,
+                        tp_limit_price: float = None,
+                        sl_limit_price: float = None,
+                        tpsl_mode: str = None, # partial, None
+                        tp_order_type: str = None, # Limit, Market(default)
+                        sl_order_type: str = None,
+                        tp_size: float = None,
+                        sl_size: float = None,
+                        tp_trigger_by: str = "MarkPrice", # MarkPrice, IndexPrice, LastPrice
+                        sl_trigger_by: str = "IndexPrice",
+                        position_idx: int = 0,
+                        ) -> None:
+        """
+            Configura los niveles de take profit y stop loss para una posición abierta.
+
+            Args:
+                session (object): Sesión de trading activa
+                category (str): Categoría del instrumento (ej: 'linear', 'spot')
+                symbol (str): Símbolo del par de trading
+                qty (float): Cantidad a operar
+                takeProfit (float, opcional): Nivel de precio para take profit
+                stopLoss (float, opcional): Nivel de precio para stop loss
+                tpLimitPrice (float, opcional): Precio límite para la orden de take profit
+                slLimitPrice (float, opcional): Precio límite para la orden de stop loss
+                tpslMode (str, opcional): Modo de ejecución TP/SL ('Full' o 'Partial')
+                tpOrderType (str, opcional): Tipo de orden para take profit
+                slOrderType (str, opcional): Tipo de orden para stop loss
+                tpTriggerBy (str, opcional): Precio de referencia para activar take profit
+                slTriggerB (str, opcional): Precio de referencia para activar stop loss
+                positionIdx (int, opcional): Identificador de posición (0: unidireccional, 1: hedge-mode Buy, 2: hedge-mode Sell)
+
+            Raises:
+                ValueError: Si no existe una posición abierta para configurar
+        """
+        pass
+    
+    @abstractclassmethod
+    async def cancel_all_orders(self, symbol, order_filter: str = None) -> dict:
+        """
+            Cancela todas las órdenes abiertas para un símbolo dado.
+
+            Args:
+                category (str): Categoría del símbolo (por ejemplo, "linear", "Spot").
+                symbol (str): Símbolo para el que se desean cancelar las órdenes.
+                order_filter (str): category=spot, puedes pasar 'Order', tpslOrder, 'StopOrder', 'OcoOrder', 'BidirectionalTpslOrder'
+                                        Si no se especifica, 'Order' por defecto
+                                    category=linear o inverse, puedes pasar 'Order', 'StopOrder', 'OpenOrder'
+                                        Si no se especifica, se cancelarán todo tipo de órdenes, como órdenes activas,
+                                        órdenes condicionales, órdenes TP/SL y órdenes de trailing stop
+                                    category=option, puedes pasar Order.
+        """
+        pass

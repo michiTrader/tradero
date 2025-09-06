@@ -3,7 +3,7 @@ import pandas as pd
 from typing import Callable, Union, Sequence
 from numbers import Number
 from .ta import PivotIndicator
-from .models import DataOHLC, Sesh
+from .models import DataOHLC, CryptoSesh
 from .util import  find_minutes_timeframe, minutes2timeframe
 
 class Strategy:
@@ -16,7 +16,7 @@ class Strategy:
         self.sesh = sesh
         return self
 
-    def get_sesh(self) -> Sesh: 
+    def get_sesh(self) -> CryptoSesh: 
         """ 
         DATA:
             get_kline, 

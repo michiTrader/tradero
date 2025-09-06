@@ -850,7 +850,6 @@ class _CryptoBacktestSesh:
         # Agregar equity tracking en la sesión
         self._equity_curve = np.full(self.data_length, np.nan)
 
-
     # bueno
     def next(self):
         """Versión MÁXIMO RENDIMIENTO con cache NumPy"""
@@ -1350,7 +1349,15 @@ class Backtest:
         #         f"Recibido: {type(data)}"
         #     )
 
-    async def run(self, p_bar=True, mae_metric_type="ROI"):
+    def reset(self):
+        """Reinicia el backtest"""
+        self._sesh.reset()
+        # Reinicializar current_index con warmup
+        self._sesh.current_index = self._warmup
+        self._sesh.warmup_completed = False
+        self._strategy = self._strategy(**self._strategy_params).set_sesh(self._sesh)
+
+    async def _run(self, p_bar=True, mae_metric_type="ROI"):
         """Ejecuta el backtest completo con barra de progreso avanzada"""
         effective_bars = self._packet_data_length - self._warmup
         print(f" Iniciando backtest con {self._packet_data_length} barras (warmup: {self._warmup}, efectivas: {effective_bars})...") if self._info else None
@@ -1394,7 +1401,7 @@ class Backtest:
                     await self._strategy.on_data()
 
                     strategy_bars += 1
-                    progress_bar.update(1)
+                    progress_bar.update()
                     
             await self._strategy.on_exit()
             
@@ -1441,25 +1448,11 @@ class Backtest:
         self._results = stats
         
         return stats
-
         # return summary, trades
 
-    def reset(self):
-        """Reinicia el backtest"""
-        self._sesh.reset()
-        # Reinicializar current_index con warmup
-        self._sesh.current_index = self._warmup
-        self._sesh.warmup_completed = False
-        self._strategy = self._strategy(**self._strategy_params).set_sesh(self._sesh)
-
-    @property
-    def sesh(self):
-        return self._sesh
-
-    @staticmethod
-    def _run_bt_as_sync(backtest, p_bar=True):
-        """ Entregar backtesting instanciado """
-        return asyncio.run(backtest.run(p_bar=p_bar))
+    def run(self, p_bar=True, mae_metric_type="ROI"): # _run_bt_as_sync
+        """ Ejejcutar backtest de forma syncrona """
+        return asyncio.run(self._run(p_bar=p_bar, mae_metric_type=mae_metric_type))
 
     def plot(self, 
         results=None,
@@ -1550,16 +1543,22 @@ class Backtest:
             relative_equity = relative_equity
         )
 
+    @property
+    def sesh(self):
+        return self._sesh
+
+
 def run_backtests(backtests:[Backtest, ...], p_bar=True):
     """Permite ejecutar uno o mas backtestings en Paralelo"""
     # Asignar color de barra a cada backtest
+    colors = ["#57C8D2FF","#7477CEFF","#AA77DAFF","#6593D8FF","#B7C577FF"]
     for i, bt in enumerate(backtests):
-        color = ["#57C8D2FF","#7477CEFF","#AA77DAFF","#6593D8FF","#B7C577FF"][i % 5]
-        bt._bar_color = color[0:7] # limitar el codigo hex TODO: Eliminar esto (dejando ordenados los codigos hex)
+        color = colors[i % 5]
+        bt._bar_color = color[0:7] # limpiar el codigo hex de caracteres adicionales
 
     # Ejecutar backtests en paralelo
     with ProcessPoolExecutor() as executor:
-        futures = [executor.submit(Backtest._run_bt_as_sync, bt, p_bar) for bt in backtests] 
+        futures = [executor.submit(Backtest.run, bt, p_bar) for bt in backtests] 
         results = [f.result() for f in futures]
 
     # Limpiar terminal después de todos los procesos

@@ -5,7 +5,10 @@ from typing import Dict
 from abc import ABC, abstractclassmethod
 import pandas as pd
 import asyncio
-from .util import timeframe2minutes
+import time
+from .util import timeframe2minutes, minutes2timeframe, find_minutes_timeframe
+from .stats import Stats
+import traceback
 """
     Una Sesh debe tener las siguientes funciones: 
         DATA: get_kline, get_data, get_last_price, get_time
@@ -38,9 +41,9 @@ class DataOHLC:
     Acceso optimizado a datos OHLCV usando NumPy para operaciones rápidas.
     Proporciona acceso a columnas como arrays numpy con caché para mejor performance.
     """ 
-    __slots__ = ["symbol", "__content", "__len", "__cache", "__arrays", "__timeframe", "__minutes", "__kwargs"]
+    __slots__ = ["symbol", "__content", "__len", "__cache", "__arrays", "__timeframe", "__minutes_tf", "__kwargs"]
 
-    def __init__(self, content: Dict[str, list], timeframe, symbol=None, **kwargs):
+    def __init__(self, content: Dict[str, list], timeframe: str = None, symbol=None, **kwargs):
         """ content: dict con las culmas o h l c v datetime"""
         self.__cache = {}
         self.__content = None # en update()
@@ -48,6 +51,7 @@ class DataOHLC:
         self.__arrays: Dict[str, _Array] = {}
         self.update(content)
         self.__timeframe = timeframe
+        self.__minutes_tf = None
         self.symbol = symbol 
 
         for key, value in kwargs.items():
@@ -162,14 +166,15 @@ class DataOHLC:
 
     @property
     def timeframe(self) -> str:
+        if self.__timeframe is None:
+            self.__timeframe = find_minutes_timeframe(self.index)
         return self.__timeframe
 
     @property
     def minutes(self) -> int:
-        cache_key = f'minutes_tf'
-        if cache_key not in self.__cache: # actualiza el caché
-            self.__cache[cache_key] = timeframe2minutes(self.__timeframe)
-        return  self.__cache[cache_key]
+        if self.__minutes_tf is None:
+            self.__minutes_tf = timeframe2minutes(self.__timeframe)
+        return self.__minutes_tf
 
     @property
     def content(self) -> dict:
@@ -235,9 +240,9 @@ class DataOHLC:
         return self.__len == 0
 
 
-class Sesh(ABC):  
+class CryptoSesh(ABC):  
     """Sesión de trading para Bybit con funciones para operar"""
-    
+
     def _process_kline_data_to_frame(self, klines, tz:str = None) -> DataOHLC:
         """
             Procesa datos de velas (klines) y los convierte a un DataFrame de pandas.
@@ -254,7 +259,7 @@ class Sesh(ABC):
         
         # Crear dataframe con los datos de lista
         df = pd.DataFrame(klines,
-            columns = ["datetime", "Open", "High", "Low", "Close", "Volume", "turnover"] )
+            columns = ["datetime", "Open", "High", "Low", "Close", "Volume", "Turnover"] )
 
         # Convertir columnas a float
         df = df.astype(float) 
@@ -270,37 +275,73 @@ class Sesh(ABC):
         # ordenar por indices
         df = df.sort_index(ascending=True).drop_duplicates()
 
-        return DataOHLC(df)
+        content = df.dropna().reset_index().to_dict(orient="list")
+
+        return DataOHLC(content)
     
-    async def run_live(self, *strategy : 'Strategy',
+    async def _run_async_strategies_as_live(self, *strategies : 'Strategy',
             init_sleep:float = 0.00, 
             on_data_sleep:float = 0.1,
             ):
         """ Ejecuta múltiples estrategias en paralelo """
 
+        # estadisticas basicas
+        self.stats = Stats(pd.Series())
+        self.stats.Start = time.time()
+        self._stop_signal = False
+
         # Instanciar cada estretegia con la session
-        strategy_instances = [s().set_sesh(sesh=self) for s in strategy]
+        strategy_instances = [s().set_sesh(sesh=self) for s in strategies]
+
+        async def _close_stretegy_protocol(strategy):
+            try:
+                await strategy.on_exit()
+                self.stats.End = time.time()
+                print(f"Estrategia {strategy.__class__.__name__} detenida correctamente.")
+            except Exception as e:
+                print("\033[91m") ; traceback.print_exc() ; print("\033[0m")
+                print(f"Error al cerrar estrategia {strategy.__class__.__name__}: {e}")
         
         async def _execute_strategy(strategy, 
                     init_sleep = init_sleep, 
                     on_data_sleep = on_data_sleep):
-            """ """
-            def _close_protocol():
-                print(f"Estrategia {self.__qualname__} detenida.")
 
             try:
+                await strategy.init()
+                await asyncio.sleep(init_sleep) 
+
                 while True:
-                    await strategy.init()
-                    await asyncio.sleep(init_sleep) 
-                    
                     await strategy.on_data()
                     await asyncio.sleep(on_data_sleep)
-                await strategy.on_exit()
-            except KeyboardInterrupt:
-                _close_protocol()
+
+            except Exception as e:
+                print("\033[91m") ; traceback.print_exc() ; print("\033[0m")
+                print(f"Error en {strategy.__class__.__name__}: {e}")
+
+            finally:
+                await _close_stretegy_protocol(strategy)
 
         # Ejecutar todas las estrategias concurrentemente
-        return await asyncio.gather(*[_execute_strategy(s) for s in strategy_instances], return_exceptions=True)
+        tasks = [_execute_strategy(s, init_sleep, on_data_sleep) for s in strategy_instances]
+        return await asyncio.gather(*tasks, return_exceptions=True)
+
+
+    def run_live(self, *strategies : 'Strategy',
+            init_sleep:float = 0.00, 
+            on_data_sleep:float = 0.1,
+            ):
+        """ Ejecuta múltiples estrategias en paralelo """
+        print(f"\033[93;1m[!]\033[90;1;3m Ejecutando estrategias... {[s.__name__ for s in strategies]}\033[0m")
+        try:
+            return asyncio.run(self._run_async_strategies_as_live(
+                *strategies, 
+                init_sleep=init_sleep,
+                on_data_sleep=on_data_sleep,
+            ))
+        except KeyboardInterrupt:
+            print("\n\033[93;1m[!]\033[90;1;3m Estrategias detenidas por el usuario\033[0m")
+        finally:
+            print("\033[93;1m[!]\033[90;1;3m Sesión finalizada correctamente\033[0m")
 
     @property
     async def total_equity(self):

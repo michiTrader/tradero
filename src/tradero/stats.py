@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from typing import cast
 
-class _Stats(pd.Series):
+class Stats(pd.Series):
     """Clase que extiende pd.Series para contener estadísticas de backtest"""
     
     def __init__(self, data=None, index=None, dtype=None, name=None, copy=False, fastpath=False):
@@ -10,7 +10,7 @@ class _Stats(pd.Series):
     
     @property
     def _constructor(self):
-        return _Stats
+        return Stats
     
     def __repr__(self):
         # Personalizar la representación para mostrar mejor las estadísticas
@@ -702,7 +702,7 @@ def compute_stats(trades, ohlc_data, equity_curve, strategy_instance=None, risk_
     s.loc['_equity_curve'] = equity_df
     s.loc['_trades'] = trades_df
     
-    return _Stats(s)
+    return Stats(s)
 
 
 

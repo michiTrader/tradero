@@ -1,3 +1,4 @@
+from typing import Union
 import pandas as pd
 import numpy as np
 import time
@@ -100,7 +101,30 @@ def minutes2timeframe(minutes: int|float) -> str:
     else:
         raise ValueError(f"No se puede convertir automáticamente el valor {minutes} a timeframe válido")
 
-def find_minutes_timeframe(index: np.ndarray[np.datetime64]) -> int:
+# def find_minutes_timeframe(index: np.ndarray[np.datetime64]) -> int:
+#     """
+#         Calcula la diferencia de tiempo entre los dos primeros índices de un DataFrame.
+
+#         Parámetros:
+#         - data (pd.DataFrame): DataFrame con un índice de tipo datetime.
+
+#         Retorna:
+#         - int: Diferencia de tiempo en minutos entre los dos primeros registros.
+#         - None: Si el DataFrame tiene menos de dos registros.
+
+#         Ejemplo de uso:
+#         >>> df = pd.DataFrame(index=pd.to_datetime(["2025-02-07 12:00:00", "2025-02-07 12:05:00"]))
+#         >>> find_timeframe(df)
+#     """
+#     if len(index) < 2:
+#         return None  # Retorna None si hay menos de dos registros   
+    
+#     first_time = index[1].astype("M8[ms]").astype("O")
+#     second_time = index[0].astype("M8[ms]").astype("O")
+    
+#     return (first_time - second_time).seconds // 60  # Convertir segundos a minutos  # Retorna un entero con los minutos completos
+
+def find_minutes_timeframe(index: Union[pd.DatetimeIndex, np.ndarray]) -> int:
     """
         Calcula la diferencia de tiempo entre los dos primeros índices de un DataFrame.
 
@@ -118,10 +142,13 @@ def find_minutes_timeframe(index: np.ndarray[np.datetime64]) -> int:
     if len(index) < 2:
         return None  # Retorna None si hay menos de dos registros   
     
-    first_time = index[1].astype("M8[ms]").astype("O")
-    second_time = index[0].astype("M8[ms]").astype("O")
+    if isinstance(index, np.ndarray):
+        index = pd.DatetimeIndex(index)
+
+    first_time = index[1]
+    second_time = index[0]
     
-    return (first_time - second_time).seconds // 60  # Convertir segundos a minutos  # Retorna un entero con los minutos completos
+    return (first_time - second_time).total_seconds() // 60  # Convertir segundos a minutos  # Retorna un entero con los minutos completos
 
 def npdt64_to_datetime(np_dt64):
     """Convierte numpy.datetime64 a datetime de Python"""

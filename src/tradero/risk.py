@@ -65,3 +65,66 @@ def entry_adjustment(entry_original, sl, adjust_factor=0):
     else:
         # Para SHORT: ajuste positivo baja la entrada (más conservador, más lejos del SL)  
         return entry_original - (sl_dist * adjust_factor)
+
+
+def size_by_risk(cash, risk, entry, sl):
+    """
+        Calcula el tamaño de la posición basado en el riesgo porcentual.
+        
+        Parámetros:
+        - cash (float): Capital disponible
+        - risk (float): Porcentaje de riesgo (ej: 0.01 para 1%)
+        - entry (float): Precio de entrada
+        - sl (float): Precio del Stop Loss
+        
+        Returns:
+        - float: Tamaño de la posición
+    """
+    risk_amount = cash * risk
+    sl_dist = abs(entry - sl)
+    size = risk_amount / sl_dist
+    return size
+
+def sl_adjustment(entry, sl, adjustment=1):
+    """
+    Ajusta el Stop Loss basado en la distancia desde el entry.
+    
+    Args:
+        entry: Precio de entrada
+        sl: Stop Loss original
+        adjustment: Factor de ajuste (1 = misma distancia)
+        
+    Returns:
+        Nuevo Stop Loss ajustado
+        
+    Examples:
+        >>> sl_adjustment(100, 90, 0.5)  # COMPRA
+        95.0
+        >>> sl_adjustment(100, 90, 1.5)  # VENTA
+        85.0
+    """
+    is_buy = entry > sl
+    new_sl_dist = abs(entry - sl) * adjustment
+    return (entry - new_sl_dist) if is_buy else (entry + new_sl_dist)
+
+def tp_adjustment(entry, tp, adjustment=1):
+    """
+    Ajusta el Take Profit basado en la distancia desde el entry.
+    
+    Args:
+        entry: Precio de entrada
+        tp: Take Profit original
+        adjustment: Factor de ajuste (1 = misma distancia)
+        
+    Returns:
+        Nuevo Take Profit ajustado
+        
+    Examples:
+        >>> tp_adjustment(100, 120, 0.5)  # COMPRA
+        95.0
+        >>> tp_adjustment(100, 120, 1.5)  # VENTA
+        130.0
+    """
+    is_buy = tp > entry
+    new_tp_dist = abs(tp - entry) * adjustment
+    return (entry + new_tp_dist) if is_buy else (entry - new_tp_dist)

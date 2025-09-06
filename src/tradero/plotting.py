@@ -902,7 +902,6 @@ def plot(
             toolbar_location='right',
             merge_tools=True,
             sizing_mode='stretch_width',
-
         )
 
     show(final_layout)

@@ -3,10 +3,11 @@ import warnings
 import asyncio
 import time
 from pybit.unified_trading import HTTP
-from ...models import DataOHLC, Sesh
+from ...models import DataOHLC, CryptoSesh
+from ...util import timeframe2minutes
 
 
-class BybitSesh(Sesh):
+class BybitSesh(CryptoSesh):
     """Sesión de trading para Bybit con funciones para operar"""
     def __init__(self, 
                 api_key: str, 
@@ -25,45 +26,12 @@ class BybitSesh(Sesh):
         self._base_coin = base_coin
         self._active_strategies = []
         self.indicators = {} # diccionario con varios diccionarios
+        self.indicator_blueprints = {}
 
         self._tz = tz
 
         print(f"{self.__class__.__name__} Status: categoria: {self._category} | Tipo de cuenta: {self._account_type} | Zona Horaria: {self._tz}")
     
-    def _process_kline_data_to_frame(self, klines, tz:str = None) -> DataOHLC:
-        """
-            Procesa datos de velas (klines) y los convierte a un DataFrame de pandas.
-            
-            Args:
-                response: Respuesta de la API con datos de velas
-                timezone: Zona horaria para convertir timestamps (default: UTC)
-                
-            Returns:
-                DataFrame con datos de velas procesados
-        """
-        # Extraer datos timezone general de la session si esta configurado
-        tz = self._tz if self._tz else (tz if tz else "UTC")
-        
-        # Crear dataframe con los datos de lista
-        df = pd.DataFrame(klines,
-            columns = ["datetime", "Open", "High", "Low", "Close", "Volume", "turnover"] )
-
-        # Convertir columnas a float
-        df = df.astype(float) 
-
-        # Setear indice a datetime
-        df["datetime"] = pd.to_datetime(df["datetime"], unit="ms", utc=True)
-        df.set_index("datetime", inplace=True) 
-        # Convertir zona horaria
-        if tz != "UTC":
-            df.index = df.index.tz_convert(tz)
-        df.index = df.index.tz_localize(None)
-
-        # ordenar por indices
-        df = df.sort_index(ascending=True).drop_duplicates()
-
-        return DataOHLC(df)
-
     # async def run_live(self, *strategy : 'Strategy',
         #     init_sleep:float = 0.00, 
         #     on_data_sleep:float = 0.1,
@@ -169,7 +137,7 @@ class BybitSesh(Sesh):
             raise ValueError("El timeframe debe ser un string")
 
         # Procesamiento de fechas
-        timeframe_minutes = timeframe2inutes(timeframe)
+        timeframe_minutes = timeframe2minutes(timeframe)
         end_time = pd.to_datetime(end) if end else pd.to_datetime(int(time.time() * 1000), unit="ms")
         start_time = pd.to_datetime(start) if start else end_time - pd.Timedelta(minutes=timeframe_minutes * (limit or 200))
 

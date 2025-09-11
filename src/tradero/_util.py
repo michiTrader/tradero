@@ -1,4 +1,5 @@
-from tradero.models import Strategy
+from tradero.lib import get_str_datetime
+
 
 class ColorWayGenerator:
     """
@@ -34,9 +35,12 @@ class ColorWayGenerator:
         self.indice = (self.indice + 1) % len(self.colores)
         return color
         
-def iprint(*args, **kwargs): # info_print
+def info_log(*args, **kwargs): # info_print
+    time = get_str_datetime()
     first_c = "\033[93m[ info]\033[0m"
-    print(first_c + "\033[93;3m", *args, "\033[0m", **kwargs)
+    print()
+    print(f"  {time} {first_c}" + "\033[93;3m", *args, "\033[0m", **kwargs)
+    print()
 
 def eprint(*args, **kwargs): # exception/error print
     first_c = "\033[91;1m[error]\033[0m"

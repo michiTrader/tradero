@@ -8,11 +8,12 @@ import pandas as pd
 import asyncio
 import time
 from datetime import datetime, timezone, timedelta
-from .lib import timeframe2minutes, minutes2timeframe, find_minutes_timeframe
+from .lib import timeframe2minutes, minutes2timeframe, find_minutes_timeframe, get_str_datetime
 from .stats import Stats
 # from .ta import PivotIndicator
 import traceback
 from kollor import ko
+
 """
     Una Sesh debe tener las siguientes funciones: 
         DATA: get_kline, get_data, get_last_price, get_time
@@ -305,9 +306,8 @@ class Strategy:
         log_type = all_kwargs["type"]
         
         name_tag = " " + self.__class__.__name__ + " "
-        # TODO: implementar tz extraido desde sesh | 
-        tz = timezone.utc  # timezone(timedelta(hours=-5)) 
-        time = datetime.now().strftime("%Y/%m/%d %H:%M:%S") # datetime.now(tz) 
+        # TODO: implementar tz extraido desde sesh | get_str_datetime ya tiene opcion de utc
+        time = get_str_datetime()
         
         tex_time_color = "#7F838E" if log_type == "strategy" else ("#C9E239" if log_type == "info" else "#F82141")
         bg_tag_color = self.log_color
@@ -327,7 +327,7 @@ class Strategy:
         print(ko("° ", tex=tex_circle_color, bg=bg_circle_color), end='') # ˱˳˲ °    ̐.  ◂▸
 
         # time
-        ko.start(tex=tex_time_color, bg=None, sty="bold")
+        ko.start(tex=tex_time_color, bg=None, sty=None)
         print(time, end=' ')
 
         # name_tag
@@ -455,69 +455,6 @@ class CryptoSesh(ABC):
 
         return DataOHLC(content)
     
-    async def _run_async_strategies_as_live(self, *strategies : 'Strategy',
-            init_sleep:float = 0.00, 
-            on_data_sleep:float = 0.1,
-            ):
-        """ Ejecuta múltiples estrategias en paralelo """
-
-        # estadisticas basicas
-        self.stats = Stats(pd.Series())
-        self.stats.Start = time.time()
-        self._stop_signal = False
-
-        # Instanciar cada estretegia con la session
-        strategy_instances = [s().set_sesh(sesh=self) for s in strategies]
-
-        async def _close_stretegy_protocol(strategy):
-            try:
-                await strategy.on_exit()
-                self.stats.End = time.time()
-                print(f"Estrategia {strategy.__class__.__name__} detenida correctamente.")
-            except Exception as e:
-                print("\033[91m") ; traceback.print_exc() ; print("\033[0m")
-                print(f"Error al cerrar estrategia {strategy.__class__.__name__}: {e}")
-        
-        async def _execute_strategy(strategy, 
-                    init_sleep = init_sleep, 
-                    on_data_sleep = on_data_sleep):
-
-            try:
-                await strategy.init()
-                await asyncio.sleep(init_sleep) 
-
-                while True:
-                    await strategy.on_data()
-                    await asyncio.sleep(on_data_sleep)
-
-            except Exception as e:
-                print("\033[91m") ; traceback.print_exc() ; print("\033[0m")
-                print(f"Error en {strategy.__class__.__name__}: {e}")
-
-            finally:
-                await _close_stretegy_protocol(strategy)
-
-        # Ejecutar todas las estrategias concurrentemente
-        tasks = [_execute_strategy(s, init_sleep, on_data_sleep) for s in strategy_instances]
-        return await asyncio.gather(*tasks, return_exceptions=True)
-
-    def run_live(self, *strategies : 'Strategy',
-            init_sleep:float = 0.00, 
-            on_data_sleep:float = 0.1,
-            ):
-        """ Ejecuta múltiples estrategias en paralelo """
-        print(f"\033[93;1m[!]\033[90;1;3m Ejecutando estrategias... {[s.__name__ for s in strategies]}\033[0m")
-        try:
-            return asyncio.run(self._run_async_strategies_as_live(
-                *strategies, 
-                init_sleep=init_sleep,
-                on_data_sleep=on_data_sleep,
-            ))
-        except KeyboardInterrupt:
-            print("\n\033[93;1m[!]\033[90;1;3m Estrategias detenidas por el usuario\033[0m")
-        finally:
-            print("\033[93;1m[!]\033[90;1;3m Sesión finalizada correctamente\033[0m")
-
     @property
     async def total_equity(self):
         pass

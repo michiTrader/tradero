@@ -1,7 +1,35 @@
 from typing import Union
 import pandas as pd
 import numpy as np
-import time
+from datetime import datetime, timezone, timedelta
+
+def get_str_datetime(utc: str = None):
+    utc_str = utc
+    if utc is None:
+        # Obtener hora local con zona del sistema
+        ahora = datetime.now().astimezone()
+
+        # Obtener offset (timedelta)
+        offset = ahora.utcoffset()
+
+        # Convertir a horas y minutos
+        total_minutes = offset.total_seconds() // 60
+        sign = "+" if total_minutes >= 0 else "-"
+        hours, minutes = divmod(abs(int(total_minutes)), 60)
+
+        utc_str = f"UTC{sign}{hours:02d}:{minutes:02d}"
+
+    hours_utc, minutes_utc = 0, 0
+
+    if len(utc_str) > 3:
+        separation = utc_str[3:].split(":")
+        hours_utc = int(separation[0])
+        if len(separation) == 2:
+            minutes_utc = int(separation[1]) if hours_utc > 0 else -int(separation[1])
+    tz = timezone(timedelta(hours=hours_utc, minutes=minutes_utc)) 
+    str_time = datetime.now(tz).strftime("%Y/%m/%d %H:%M:%S") # datetime.now(tz) 
+
+    return str_time
 
 def read_csv_ohlc(rute) -> 'DataOHLC':
     "formato nobre del symbolo en la ruta: 'ADAUSDT_1min_2025_JUNE.csv' "

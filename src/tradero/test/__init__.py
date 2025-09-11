@@ -1,5 +1,5 @@
 from pathlib import Path
-from ..util import read_csv_ohlc
+from ..lib import read_csv_ohlc
 
 _current_dir = Path(__file__).parent
 _data_dir = _current_dir / "data"

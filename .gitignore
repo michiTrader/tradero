@@ -8,5 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
-src/test/
+
+src/test
 src/tradero/test/demo_keys.py
+NOTES.txt

@@ -4,7 +4,7 @@ import asyncio
 import time
 from pybit.unified_trading import HTTP
 from ...models import DataOHLC, CryptoSesh
-from ...util import timeframe2minutes
+from ...lib import timeframe2minutes
 
 
 class BybitSesh(CryptoSesh):

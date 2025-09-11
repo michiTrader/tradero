@@ -1,14 +1,18 @@
 
+from bokeh.colors import Color
 import numpy as np
 import pandas as pd
-from typing import Dict
+from typing import Dict, Callable, Union
 from abc import ABC, abstractclassmethod
 import pandas as pd
 import asyncio
 import time
-from .util import timeframe2minutes, minutes2timeframe, find_minutes_timeframe
+from datetime import datetime, timezone, timedelta
+from .lib import timeframe2minutes, minutes2timeframe, find_minutes_timeframe
 from .stats import Stats
+# from .ta import PivotIndicator
 import traceback
+from kollor import ko
 """
     Una Sesh debe tener las siguientes funciones: 
         DATA: get_kline, get_data, get_last_price, get_time
@@ -240,6 +244,178 @@ class DataOHLC:
         return self.__len == 0
 
 
+class Strategy:
+    """ Clase base para estrategias de trading en Live"""
+    def __init__(self, sesh): # , sesh: BybitSesh
+        self.sesh = sesh 
+        self._backtest = None
+        self.__status = "waiting" # waiting , stopped, live
+        self.log_color = None
+        
+    def set_sesh(self, sesh):
+        self.sesh = sesh
+        return self
+
+    def get_sesh(self) -> 'CryptoSesh': 
+        """ 
+        DATA:
+            get_kline, 
+            get_data, 
+            get_last_price, 
+            get_time
+        INFO: 
+            get_account_info, 
+            get_balance, 
+            get_position_status, 
+            get_all_orders, 
+            get_leverage
+        CONFIGURATION:
+            set_time_zone, 
+            set_leverage, 
+            set_margin_mode
+        Trading:
+            sell, 
+            buy, 
+            close_position, 
+            set_trading_stop, 
+            cancel_all_orders
+        """
+        return self.sesh
+         
+    def optimize(self, *args, **kwargs):
+        """ """
+        # # Backtetear y optimizar parametros (la estrategia debe ser compatible con backtesting.py)
+        # bt = backtesting.optimize(self, data)  (visualizacion por ejemplo)
+
+        # # setear los parametros optimizados
+        # self.params = bt.best_paramas
+        pass
+
+    def log(self, *args, **kwargs): # strategy print
+        defaults = {
+            "end" : "\n",
+            "sep" : " ",
+            "flush" : False,
+            "type" : "strategy", # puede ser 'error' o 'info' 
+        }
+
+        all_kwargs = {**defaults, **kwargs}
+        print_kwargs = {p:p for p in kwargs if kwargs in ["end", "sep", "flush"]}
+
+        log_type = all_kwargs["type"]
+        
+        name_tag = " " + self.__class__.__name__ + " "
+        # TODO: implementar tz extraido desde sesh | 
+        tz = timezone.utc  # timezone(timedelta(hours=-5)) 
+        time = datetime.now().strftime("%Y/%m/%d %H:%M:%S") # datetime.now(tz) 
+        
+        tex_time_color = "#7F838E" if log_type == "strategy" else ("#C9E239" if log_type == "info" else "#F82141")
+        bg_tag_color = self.log_color
+        tex_tag_color = "#000000"
+        tex_mensage_color = self.log_color 
+        tex_circle_color = "#E0C125" if self.__status == "waiting" else (
+            "#41EE41" if self.__status == "live" else (
+            "#F82141" if self.__status == "stopped" else 
+            "#4AB2E2"))
+        bg_circle_color = None
+
+        if log_type == "error":
+            tex_circle_color, tex_time_color, tex_mensage_color = ("#F82141", "#F82141", "#F82141")
+            bg_circle_color = "#F82141"
+
+        # Status Circle
+        print(ko("° ", tex=tex_circle_color, bg=bg_circle_color), end='') # ˱˳˲ °    ̐.  ◂▸
+
+        # time
+        ko.start(tex=tex_time_color, bg=None, sty="bold")
+        print(time, end=' ')
+
+        # name_tag
+        ko.start(tex=tex_tag_color, bg=bg_tag_color, sty="bold")
+        print(name_tag, end=f"{ko.end(return_repr=True)} ")
+
+        # mesage
+        ko.start(tex=tex_mensage_color, bg=None, sty="bold")
+        print(*args, **print_kwargs)
+        
+        ko.end()
+
+    def start(self):
+        self.__status = "live" 
+
+    def stop(self):
+        self.__status = "stopped" 
+
+    def update(self):
+        # TODO: guardar reporte de la estrategia 
+        pass
+
+
+    async def init(self):
+        """ """
+
+    async def on_live(self):
+        """ """
+
+    async def on_stop(self):
+        """ """
+
+    async def I(self, 
+        indicator_obj: Callable, 
+        data: Union[DataOHLC, 'PivotIndicator'], 
+        only_visual=False,
+        **kwargs, 
+    ):
+        """ Guarda en la Sesh los datos del indicador en formato: dict(func, timeframe, kwargs)"""
+
+        # TODO: assert: el timeframe del indicador no puede ser menor< al timeframe de la data original 
+        if not isinstance(data, DataOHLC):
+            data = data.data # extraer el objeto Data del indicador
+
+        # Guardar el in indicador en la session una sola vez
+        self._save_bp_indicator_in_sesh_only_once(obj=indicator_obj, data=data, **kwargs)
+
+        if only_visual:
+            return 
+        
+        # Retornar el indicador instanciado
+        return indicator_obj(data, **kwargs)
+
+    def _save_bp_indicator_in_sesh_only_once(self, obj: Callable, data: 'DataOHLC', **kwargs):
+        f"""Guarda los indicadores con los claves ['func', 'index', 'timeframe', 'kwargs']"""
+
+        # identificar el timeframe de los datos del indicador
+        # print(f"data.index: {data.index} core 1373 _save_bp_indicator_in_sesh_only_once")
+        indicator_data_timeframe = find_minutes_timeframe(data.index)
+
+        # Crear el tag idetificador 
+        str_timeframe = f"{minutes2timeframe(indicator_data_timeframe)}"
+        str_name = obj.__name__
+        str_kwargs = " ".join((map(lambda x: f"{x[1]}", (kwargs.items()))))
+
+        tag_indicator = f"{str_name} {str_kwargs} ·{str_timeframe}" 
+
+        if tag_indicator not in self.sesh.indicator_blueprints.keys():
+            sesh = self.sesh
+            sesh.indicator_blueprints[tag_indicator] = dict(
+                obj=obj, 
+                timeframe=str_timeframe, 
+                kwargs=kwargs
+                )
+
+    @property
+    def name(self):
+        return self.__class__.__name__
+
+    @property
+    def status(self):
+        return self.__status
+
+    @property
+    def is_closed(self):
+        return self.__status == "closed"
+
+
 class CryptoSesh(ABC):  
     """Sesión de trading para Bybit con funciones para operar"""
 
@@ -324,7 +500,6 @@ class CryptoSesh(ABC):
         # Ejecutar todas las estrategias concurrentemente
         tasks = [_execute_strategy(s, init_sleep, on_data_sleep) for s in strategy_instances]
         return await asyncio.gather(*tasks, return_exceptions=True)
-
 
     def run_live(self, *strategies : 'Strategy',
             init_sleep:float = 0.00, 

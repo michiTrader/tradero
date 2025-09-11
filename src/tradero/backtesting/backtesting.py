@@ -1,5 +1,5 @@
 from .nb import count_available_resample_bars_nb, count_closed_resample_bars_nb
-from ..util import timeframe2minutes, npdt64_to_datetime
+from ..lib import timeframe2minutes, npdt64_to_datetime
 from ..models import DataOHLC
 from ..stats import compute_stats
 from ..core import Strategy
@@ -1403,7 +1403,7 @@ class Backtest:
                     strategy_bars += 1
                     progress_bar.update()
                     
-            await self._strategy.on_exit()
+            await self._strategy.on_stop()
             
         finally:
             # progress_bar.colour = "#8DBA54"

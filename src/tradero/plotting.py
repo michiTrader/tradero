@@ -9,9 +9,9 @@ from bokeh.layouts import column, gridplot
 from bokeh.transform import factor_cmap
 from bokeh.models.formatters import NumeralTickFormatter
 from typing import Union, Literal
-from .util import try_, minutes2timeframe, timeframe2minutes
+from .lib import try_, minutes2timeframe, timeframe2minutes
 from .models import DataOHLC
-from .util import ColorWayGenerator
+from ._util import ColorWayGenerator
 
 # sin uso
 def align_indicator_to_original(

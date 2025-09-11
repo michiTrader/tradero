@@ -101,29 +101,6 @@ def minutes2timeframe(minutes: int|float) -> str:
     else:
         raise ValueError(f"No se puede convertir automáticamente el valor {minutes} a timeframe válido")
 
-# def find_minutes_timeframe(index: np.ndarray[np.datetime64]) -> int:
-#     """
-#         Calcula la diferencia de tiempo entre los dos primeros índices de un DataFrame.
-
-#         Parámetros:
-#         - data (pd.DataFrame): DataFrame con un índice de tipo datetime.
-
-#         Retorna:
-#         - int: Diferencia de tiempo en minutos entre los dos primeros registros.
-#         - None: Si el DataFrame tiene menos de dos registros.
-
-#         Ejemplo de uso:
-#         >>> df = pd.DataFrame(index=pd.to_datetime(["2025-02-07 12:00:00", "2025-02-07 12:05:00"]))
-#         >>> find_timeframe(df)
-#     """
-#     if len(index) < 2:
-#         return None  # Retorna None si hay menos de dos registros   
-    
-#     first_time = index[1].astype("M8[ms]").astype("O")
-#     second_time = index[0].astype("M8[ms]").astype("O")
-    
-#     return (first_time - second_time).seconds // 60  # Convertir segundos a minutos  # Retorna un entero con los minutos completos
-
 def find_minutes_timeframe(index: Union[pd.DatetimeIndex, np.ndarray]) -> int:
     """
         Calcula la diferencia de tiempo entre los dos primeros índices de un DataFrame.
@@ -154,44 +131,5 @@ def npdt64_to_datetime(np_dt64):
     """Convierte numpy.datetime64 a datetime de Python"""
     return np_dt64.astype("M8[ms]").astype("O")
 
-def execution_time_measure(func, iterations=100):
-    start = time.time()
-    for i in range(iterations):
-        func()
-    end = time.time()
-    return (end - start) / iterations
 
-class ColorWayGenerator:
-    """
-    Generador de colores para gráficos y visualizaciones.
 
-    Esta clase permite generar colores de forma secuencial a partir de paletas predefinidas.
-    Cada vez que se llama a la instancia, devuelve el siguiente color de la paleta de forma cíclica.
-
-    Paletas disponibles:
-        - colorway_1: ['#24c1dd', '#ff59a7', '#e5ac4a', '#17ca7c', '#c270eb', '#d3bf10', '#554cde']
-        - colorway_2: ['#554cde', '#d3bf10', '#c270eb', '#17ca7c', '#e5ac4a', '#ff59a7', '#24c1dd']
-
-    Ejemplo de uso:
-        >>> # Crear instancia con paleta por defecto (colorway_1)
-        >>> color_generator = ColorWay()
-        >>> first_color = color_generator()  # Retorna '#24c1dd'
-        >>> second_color = color_generator() # Retorna '#ff59a7'
-        
-        >>> # Crear instancia con paleta específica
-        >>> color_generator = ColorWay(way="colorway_2")
-        >>> first_color = color_generator()  # Retorna '#554cde'
-    """
-    def __init__(self, way="colorway_1"):
-        self.indice = 0
-        self.colors_dict = {
-            "colorway_1": ['#ff59a7', '#24c1dd', '#e5ac4a', '#17ca7c', '#c270eb', '#d3bf10', '#554cde'],
-            "colorway_2": ['#554cde', '#d3bf10', '#c270eb', '#17ca7c', '#e5ac4a', '#ff59a7', '#24c1dd'],
-            }
-        self.colores = self.colors_dict[way]
-    
-    def __call__(self):
-        color = self.colores[self.indice]
-        self.indice = (self.indice + 1) % len(self.colores)
-        return color
-        

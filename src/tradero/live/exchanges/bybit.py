@@ -3,8 +3,8 @@ import warnings
 import asyncio
 import time
 from pybit.unified_trading import HTTP
-from ...models import DataOHLC, CryptoSesh
-from ...lib import timeframe2minutes
+from tradero.models import DataOHLC, CryptoSesh
+from tradero.lib import timeframe2minutes
 
 
 class BybitSesh(CryptoSesh):
@@ -32,38 +32,9 @@ class BybitSesh(CryptoSesh):
 
         print(f"{self.__class__.__name__} Status: categoria: {self._category} | Tipo de cuenta: {self._account_type} | Zona Horaria: {self._tz}")
     
-    # async def run_live(self, *strategy : 'Strategy',
-        #     init_sleep:float = 0.00, 
-        #     on_data_sleep:float = 0.1,
-        #     ):
-        # """ Ejecuta múltiples estrategias en paralelo """
-
-        # # Instanciar cada estretegia con la session
-        # strategy_instances = [s().set_sesh(sesh=self) for s in strategy]
-        
-        # async def _execute_strategy(strategy, 
-        #             init_sleep = init_sleep, 
-        #             on_data_sleep = on_data_sleep):
-        #     """ """
-        #     def _close_protocol():
-        #         print(f"Estrategia {self.__qualname__} detenida.")
-
-        #     try:
-        #         while True:
-        #             await strategy.init()
-        #             await asyncio.sleep(init_sleep) 
-                    
-        #             await strategy.on_data()
-        #             await asyncio.sleep(on_data_sleep)
-        #     except KeyboardInterrupt:
-        #         _close_protocol()
-
-        # # Ejecutar todas las estrategias concurrentemente
-        # return await asyncio.gather(*[_execute_strategy(s) for s in strategy_instances], return_exceptions=True)
-
     @property
     async def total_equity(self):
-        return int(await self.get_balance["totalEquity"])
+        return float(await self.get_balance["totalEquity"])
     
     @property
     def time_zone(self):
@@ -212,26 +183,6 @@ class BybitSesh(CryptoSesh):
             
         return data
 
-    async def _get_ticker(self, symbol) -> dict:
-        """
-            Obtiene los detalles del ticker de un par de trading.
-
-            Args:
-                session: Sesión activa de la API
-                category: Categoría del mercado (ej: 'linear','spot')
-                symbol: Símbolo del par de trading
-
-            Returns:
-                dict: Detalles del ticker del par de trading
-        """
-        return await asyncio.get_event_loop().run_in_executor(
-            None, 
-            lambda: self._session.get_tickers(
-                category=self._category, 
-                symbol=symbol
-            )["result"]["list"][0]
-        )
-
     async def get_last_price(self, symbol) -> float:
         """
             Obtiene el último precio de un par de trading.
@@ -244,7 +195,15 @@ class BybitSesh(CryptoSesh):
             Returns:
                 float: Último precio del par de trading
         """
-        ticker = await self._get_ticker(symbol)
+
+        ticker = await asyncio.get_event_loop().run_in_executor(
+            None, 
+            lambda: self._session.get_tickers(
+                category=self._category, 
+                symbol=symbol
+            )["result"]["list"][0]
+        )
+
         return float(ticker["lastPrice"])
 
     async def get_time(self, tz: str = None) -> pd.Timestamp:
@@ -278,10 +237,9 @@ class BybitSesh(CryptoSesh):
         """
 
         assert leverage > 0, "El valor de leverage debe ser mayor que 0."
-        assert isinstance(leverage, int), "El valor de leverage debe ser un entero."
 
         if int(await self.get_leverage(symbol)) == int(leverage):
-            print(f"Nivel de apalancamiento para {symbol} ya establecido en {leverage}.")
+            # print(f"Nivel de apalancamiento para {symbol} ya establecido en {leverage}.")
             return
         
         try:
@@ -294,7 +252,7 @@ class BybitSesh(CryptoSesh):
                     sellLeverage=str(leverage)
                 )
             )
-            print (f"Nivel de apalancamiento para {symbol} establecido en {leverage}.")
+            # print (f"Nivel de apalancamiento para {symbol} establecido en {leverage}.")
         except:
             raise ValueError("No se pudo establecer el nivel de apalancamiento|margen.")
 
@@ -320,13 +278,34 @@ class BybitSesh(CryptoSesh):
         
 
     """ INFO """
+    # NEW 
+    async def get_instruments_info(self, symbol) -> dict:
+        """
+            Obtiene información detallada sobre un instrumento (par de trading).
+
+            Args:
+                session: Sesión activa de la API
+                category: Categoría del mercado (ej: 'linear','spot')
+                symbol: Símbolo del par de trading
+
+            Returns:
+                dict: Información detallada del instrumento
+        """
+        return await asyncio.get_event_loop().run_in_executor(
+            None, 
+            lambda: self._session.get_instruments_info(
+                category=self._category, 
+                symbol=symbol
+            )["result"]["list"][0]
+        )
+
     async def get_account_info(self):
         """
             Obtiene información de la cuenta de trading.
         """
         return await asyncio.get_event_loop().run_in_executor(
             None, 
-            lambda: self._session.get_account_info()
+            lambda: self._session.get_account_info()["result"]
         )
 
     async def get_balance(self, coin: str = "USDT", account_type: str = None):
@@ -345,7 +324,26 @@ class BybitSesh(CryptoSesh):
             None, 
             lambda: self._session.get_wallet_balance(accountType=account_type, coin=coin)["result"]["list"][0]
         )
+    # New
+    async def get_position(self, symbol) -> dict:
+        """
+            Obtiene el estado de la posición actual para un par de trading.
 
+            Args:
+                symbol: Símbolo del par de trading
+
+            Returns:
+                dict: Estado de la posición actual ({"size": size, "side": side})
+        """
+        response = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: self._session.get_positions(category=self._category, symbol=symbol)
+        )
+
+        position = response["result"]["list"][0]
+
+        return position
+    # TODO: eliminar
     async def get_position_status(self, symbol) -> dict:
         """
             Obtiene el estado de la posición actual para un par de trading.
@@ -367,13 +365,50 @@ class BybitSesh(CryptoSesh):
         side = position["side"]
 
         return {"size": size, "side": side}
-
+    # NEW
+    async def get_risk_limit(self, symbol) -> dict:
+        """
+            Obtiene el límite de riesgo para un par de trading.
+        """
+        return await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: self._session.get_risk_limit(
+                category=self._category,
+                symbol=symbol
+            )["result"]["list"]
+        )
+    # TODO: NEW agregar a las instrucciones de creacion de sesion
+    async def get_new_orders(self, symbol) -> list:
+        # Extraer el historial de ordenes en lista
+        result_list = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: self._session.get_open_orders(
+                category=self._category,
+                symbol=symbol,
+                openOnly=0
+            )["result"]["list"]
+        )
+        return result_list[::-1]
+    # NEW
+    async def get_order_history(self, symbol) -> list:
+        # Extraer el historial de ordenes en lista
+        result_list = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: self._session.get_open_orders(
+                category=self._category,
+                symbol=symbol,
+                openOnly=1
+            )["result"]["list"]
+        )
+        return result_list[::-1]
+    # MODIFIED
     async def get_all_orders(self, symbol) -> list:
         """
             Obtiene el historial de ordenes (en forma de diccionario) referente a un par de trading.
         """
-        # Extraer el historial de ordenes en lista
-        open_orders_not_filled = await asyncio.get_event_loop().run_in_executor(
+
+        # Extraer el historial de ordenes en lista de forma concurrente
+        open_orders_not_filled_task = asyncio.get_event_loop().run_in_executor(
             None,
             lambda: self._session.get_open_orders(
                 category=self._category,
@@ -382,71 +417,35 @@ class BybitSesh(CryptoSesh):
             )["result"]["list"]
         )
 
-        open_orders_filled = await asyncio.get_event_loop().run_in_executor(
+        open_orders_filled_task = asyncio.get_event_loop().run_in_executor(
             None,
             lambda: self._session.get_open_orders(category=self._category,
                 symbol=symbol,
                 openOnly=1
             )["result"]["list"]
         )
+        
+        # Ejecutar ambas requests concurrentemente
+        open_orders_not_filled, open_orders_filled = await asyncio.gather(
+            open_orders_not_filled_task,
+            open_orders_filled_task
+        )
                                                 
-        order_list = open_orders_not_filled + open_orders_filled
+        order_list = (open_orders_not_filled + open_orders_filled)[::-1]
 
         return order_list
 
-    async def _get_order(self, symbol, order_id, max_attempts=15, wait_time=0.5) -> dict:
-        """
-            Obtiene los detalles de una orden (como diccionario) para un ID de orden dado usando dos métodos de búsqueda:
-            1. Primero intenta encontrar la orden en las órdenes abiertas actualmente (más rápido)
-            2. Si no se encuentra, busca en todo el historial de órdenes con múltiples intentos
-            
-            Args:
-                session: Sesión activa de la API
-                category: Categoría del mercado (ej: 'linear', 'spot')
-                symbol: Símbolo del par de trading
-                order_id: ID de la orden a buscar
-                max_attempts: Número máximo de reintentos al buscar en el historial (default: 15)
-                wait_time: Tiempo de espera entre reintentos en segundos (default: 0.5)
-                
-            Returns:
-                dict: Detalles de la orden si se encuentra
-                
-            Raises:
-                ValueError: Si la orden no se encuentra después de max_attempts
-        """
-
-        # """" Primer metodo de busqueda """
-        open_orders = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self._session.get_open_orders(
-                category=self._category, symbol=symbol, limit=1, openOnly=1
-            )["result"]["list"]
-        )
-
-        if open_orders:
-            matching_orders = [d for d in open_orders if d["orderId"] == order_id]
+    async def get_order(self, symbol, order_id, max_attempts=15, wait_time=0.1) -> dict:
+        all_orders = await self.get_all_orders(symbol)
+        if all_orders:
+            matching_orders = [d for d in all_orders if d["orderId"] == order_id]
             if matching_orders:
                 return matching_orders[0] 
-
-        # """" Segundo metodo de busqueda """
-        for attempt in range(1, max_attempts+1):
-            # Extraer el historial de ordenes
-            order_list = await self.get_all_orders(symbol)
-
-            matching_orders = [d for d in order_list if d["orderId"] == order_id]
-
-            if matching_orders:
-                order = matching_orders[0]
-                return order
-            else: # Buscando la orden
-                time.sleep(wait_time)
-        
-        # En caso de que no se encuentre la Orden después de varios intentos, lanzar un error
-        raise ValueError(f"No se pudo encontrar la orden con ID {order_id} después de {max_attempts} intentos")
+        return None
 
     async def get_leverage(self, symbol: str) -> int:
         """
-            Obtiene el nivel de apalancamiento (leverage) para un par de trading.
+            Obtiene el nivel de apalancamiento (leverage) de un par de trading.
             Args:
                 symbol: Símbolo del par de trading
             Returns:
@@ -467,7 +466,23 @@ class BybitSesh(CryptoSesh):
         except Exception as e:
             print(f"Error al obtener el apalancamiento para {symbol}: {e}")
             return 0
-
+    # NEW
+    async def get_closed_pnl(self, symbol: str) -> list:
+        """
+            Obtiene el historial de pnl cerrado para un par de trading.
+            Args:
+                symbol: Símbolo del par de trading
+            Returns:
+                list: Historial de pnl cerrado para el par de trading.
+        """
+        list_result = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: self._session.get_closed_pnl(
+                category=self._category,
+                symbol=symbol
+            )["result"]["list"]
+        )
+        return list_result[::-1]
 
     """ Trading """
     async def _place_order(self,
@@ -507,14 +522,10 @@ class BybitSesh(CryptoSesh):
                 dict: Respuesta de la orden colocada
         """ 
 
-        assert not (sl_price and pct_sl) or not (tp_price and pct_tp), "Solo se puede especificar TP/SL en forma de precio o porcentaje, no ambos"
-        # assert not (price and stop_price), "Solo se puede especificar precio (limite) o precio stop, no ambos"
-
         is_limit_order = bool(price)
 
         is_percentage_tp_sl = bool(pct_sl) or bool(pct_tp)
         is_price_tp_sl = bool(tp_price) or bool(sl_price)
-
         
         # Validacion y Configuracion del tipo de orden
         if is_limit_order:
@@ -545,6 +556,7 @@ class BybitSesh(CryptoSesh):
                 stopLoss=str_sl_price, # Convertir a string como requrimiento de la API
                 takeProfit=str_tp_price, # Convertir a string como requrimiento de la API
                 timeInForce=time_in_force, #PostOnly, GTC
+                triggerBy="LastPrice",
             )
         )
 
@@ -556,7 +568,7 @@ class BybitSesh(CryptoSesh):
             order_id = response["result"]["orderId"]
 
             # Obtener la orden y su datos 
-            response_order = await self._get_order(symbol=symbol, order_id=order_id)
+            response_order = await self.get_order(symbol=symbol, order_id=order_id)
             # Obtener el avg_price y el size de la orden
             order_avg_price = float(response_order["avgPrice"])
             order_qty = float(response_order["qty"])
@@ -625,8 +637,10 @@ class BybitSesh(CryptoSesh):
                             time_in_force=time_in_force,
                         )
 
-        order = await self._get_order(symbol, response["result"]["orderId"])
-        return order
+        # order = await self.get_order(symbol, response["result"]["orderId"])
+        # return order
+
+        return response["result"]
 
     async def buy(self,
             symbol: str,
@@ -667,8 +681,10 @@ class BybitSesh(CryptoSesh):
             time_in_force=time_in_force,
         )
 
-        order = await self._get_order(symbol, response["result"]["orderId"])
-        return order
+        # order = await self.get_order(symbol, response["result"]["orderId"])
+        # return order
+        # TODO: !!!!! en bybit tambien debería retornar solo la order id
+        return response["result"]
 
     async def close_position(self, symbol):
         position_info = await self.get_position_status(symbol=symbol)
@@ -804,3 +820,15 @@ class BybitSesh(CryptoSesh):
                 orderFilter=order_filter
             )
         )
+    # NEW
+    async def cancel_order(self, symbol, order_id):
+        return await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: self._session.cancel_order(
+                category=self._category, 
+                symbol=symbol, 
+                orderId=order_id
+            )
+        )
+
+

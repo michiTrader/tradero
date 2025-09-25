@@ -1,4 +1,148 @@
-from tradero.lib import get_str_datetime
+from tradero.lib import get_str_datetime_now
+from kollor import ko
+from enum import Enum
+from dataclasses import dataclass
+from typing import Dict, Optional
+
+#region Strategy LOG MANAGER 
+class LogType(Enum):
+    """Tipos de log disponibles"""
+    STRATEGY = "strategy"
+    ERROR = "error" 
+    INFO = "info"
+    NORMAL = "normal"
+
+class StrategyStatus(Enum):
+    """Estados posibles de una estrategia"""
+    WAITING = "waiting"
+    LIVE = "live"
+    STOPPED = "stopped"
+    OTHER = "other"
+
+@dataclass
+class ColorScheme:
+    """Esquema de colores para el logging"""
+    time: str
+    circle: str
+    circle_bg: Optional[str]
+    message: str
+
+class LogColorManager:
+    """Gestor de colores para diferentes tipos de log y estados"""
+    
+    # Colores por tipo de log
+    LOG_COLORS = {
+        LogType.STRATEGY: "#7F838E",
+        LogType.INFO: "#DEEA99FF", 
+        LogType.ERROR: "#F82141",
+        LogType.NORMAL: "#A6AAB5FF"
+    }
+    
+    # Colores por estado de estrategia
+    STATUS_COLORS = {
+        StrategyStatus.WAITING: "#CF8F18FF",
+        StrategyStatus.LIVE: "#1EFF3CFF",
+        StrategyStatus.STOPPED: "#E31F3DFF",
+        StrategyStatus.OTHER: "#7972FFFF"
+    }
+    
+    @classmethod
+    def get_colors(cls, log_type: LogType, status: str, strategy_color: str) -> ColorScheme:
+        """Obtiene el esquema de colores basado en el tipo de log y estado"""
+        
+        # Colores base
+        time_color = cls.LOG_COLORS.get(log_type, "#7F838E")
+        message_color = strategy_color
+        
+        # Color del círculo basado en el estado
+        try:
+            status_enum = StrategyStatus(status)
+            circle_color = cls.STATUS_COLORS.get(status_enum, "#495DE4")
+        except ValueError:
+            circle_color = "#495DE4"
+        
+        circle_bg = None
+        
+        # Caso especial para errores
+        if log_type == LogType.ERROR:
+            time_color = message_color = circle_color = "#F82141"
+            circle_bg = "#F82141"
+
+        if log_type == LogType.INFO:
+            time_color = message_color = circle_color = "#CCE635"
+            circle_bg = "#CCE635"
+        
+        return ColorScheme(
+            time=time_color,
+            circle=circle_color,
+            circle_bg=circle_bg,
+            message=message_color
+        )
+
+class StrategyLogManager:
+    """Gestor principal de logging para estrategias"""
+    
+    def __init__(self, strategy_name: str, strategy_color: str, status: str):
+        self.strategy_name = strategy_name
+        self.strategy_color = strategy_color or "#72D3F1"
+        self.status = status
+    
+    def log(self, *args, **kwargs):
+        """Método principal de logging"""
+        # Configuración por defecto
+        defaults = {
+            "end": "\n",
+            "sep": " ",
+            "flush": False,
+            "type": "strategy",
+            "time": get_str_datetime_now(),
+        }
+        
+        config = {**defaults, **kwargs}
+        log_type_str = config["type"]
+        
+        # Caso especial para log normal
+        if log_type_str == 'normal':
+            print_kwargs = self._get_print_kwargs(**config)
+            return print(*args, **print_kwargs)
+        
+        # Procesar log con formato
+        try:
+            log_type = LogType(log_type_str)
+        except ValueError:
+            log_type = LogType.STRATEGY
+        
+        # Obtener colores y formatear
+        colors = LogColorManager.get_colors(log_type, self.status, self.strategy_color)
+        timestamp = config["time"]
+        name_tag = f" {self.strategy_name} "
+        print_kwargs = self._get_print_kwargs(**config)
+        
+        self._print_formatted_log(colors, timestamp, name_tag, *args, **print_kwargs)
+    
+    def _get_print_kwargs(self, **kwargs) -> Dict:
+        """Filtra argumentos válidos para print()"""
+        valid_keys = {"end", "sep", "flush"}
+        return {k: v for k, v in kwargs.items() if k in valid_keys}
+    
+    def _print_formatted_log(self, colors: ColorScheme, timestamp: str, name_tag: str, *args, **print_kwargs):
+        """Imprime el log con formato completo"""
+        # Círculo de estado
+        print(ko("° ", tex=colors.circle, bg=colors.circle_bg), end='')
+        
+        # Timestamp
+        ko.start(tex=colors.time, bg=None, sty=None)
+        print(timestamp, end=' ')
+        
+        # Etiqueta del nombre
+        ko.start(tex="#000000", bg=self.strategy_color, sty="bold")
+        print(name_tag, end=f"{ko.end(return_repr=True)} ")
+        
+        # Mensaje
+        ko.start(tex=colors.message, bg=None, sty="bold")
+        print(*args, **print_kwargs)
+        
+        ko.end()
 
 
 class ColorWayGenerator:
@@ -34,9 +178,10 @@ class ColorWayGenerator:
         color = self.colores[self.indice]
         self.indice = (self.indice + 1) % len(self.colores)
         return color
+   
         
 def info_log(*args, **kwargs): # info_print
-    time = get_str_datetime()
+    time = get_str_datetime_now()
     first_c = "\033[93m[ info]\033[0m"
     print()
     print(f"  {time} {first_c}" + "\033[93;3m", *args, "\033[0m", **kwargs)
@@ -46,11 +191,11 @@ def eprint(*args, **kwargs): # exception/error print
     first_c = "\033[91;1m[error]\033[0m"
     print(first_c + "\033[91;3m", *args, "\033[0m", **kwargs)
 
-
 def execution_time_measure(func, iterations=100):
     start = time.time()
     for i in range(iterations):
         func()
     end = time.time()
     return (end - start) / iterations
+
 

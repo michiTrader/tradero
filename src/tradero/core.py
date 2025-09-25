@@ -1,12 +1,11 @@
+import pandas as pd 
+from typing import Callable, Union, Sequence 
+from numbers import Number 
+from .ta import PivotIndicator 
+from .models import DataOHLC, CryptoSesh 
+from .lib import  find_minutes_timeframe, minutes2timeframe 
 
-import pandas as pd
-from typing import Callable, Union, Sequence
-from numbers import Number
-from .ta import PivotIndicator
-from .models import DataOHLC, CryptoSesh
-from .lib import  find_minutes_timeframe, minutes2timeframe
-
-from .models import Strategy
+from .models import Strategy 
 
 def crossover(series1: Sequence, series2: Sequence) -> bool:
     """

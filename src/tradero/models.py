@@ -8,11 +8,12 @@ import pandas as pd
 import asyncio
 import time
 from datetime import datetime, timezone, timedelta
-from .lib import timeframe2minutes, minutes2timeframe, find_minutes_timeframe, get_str_datetime
+from .lib import timeframe2minutes, minutes2timeframe, find_minutes_timeframe, get_str_datetime_now
 from .stats import Stats
 # from .ta import PivotIndicator
 import traceback
 from kollor import ko
+from tradero._util import StrategyLogManager
 
 """
     Una Sesh debe tener las siguientes funciones: 
@@ -172,7 +173,7 @@ class DataOHLC:
     @property
     def timeframe(self) -> str:
         if self.__timeframe is None:
-            self.__timeframe = find_minutes_timeframe(self.index)
+            self.__timeframe = minutes2timeframe(find_minutes_timeframe(self.index))
         return self.__timeframe
 
     @property
@@ -244,14 +245,13 @@ class DataOHLC:
         """Devuelve True si no hay datos disponibles."""
         return self.__len == 0
 
-
 class Strategy:
     """ Clase base para estrategias de trading en Live"""
     def __init__(self, sesh): # , sesh: BybitSesh
         self.sesh = sesh 
-        self._backtest = None
         self.__status = "waiting" # waiting , stopped, live
         self.log_color = None
+        self.backtest_mode = False
         
     def set_sesh(self, sesh):
         self.sesh = sesh
@@ -282,7 +282,7 @@ class Strategy:
             cancel_all_orders
         """
         return self.sesh
-         
+
     def optimize(self, *args, **kwargs):
         """ """
         # # Backtetear y optimizar parametros (la estrategia debe ser compatible con backtesting.py)
@@ -292,53 +292,74 @@ class Strategy:
         # self.params = bt.best_paramas
         pass
 
-    def log(self, *args, **kwargs): # strategy print
-        defaults = {
-            "end" : "\n",
-            "sep" : " ",
-            "flush" : False,
-            "type" : "strategy", # puede ser 'error' o 'info' 
-        }
+    # def log(self, *args, **kwargs): # strategy info normal
+        # defaults = {
+        #     "end" : "\n",
+        #     "sep" : " ",
+        #     "flush" : False,
+        #     "type" : "strategy", # puede ser 'error', 'info' o 'normal'
+        # }
 
-        all_kwargs = {**defaults, **kwargs}
-        print_kwargs = {p:p for p in kwargs if kwargs in ["end", "sep", "flush"]}
+        # all_kwargs = {**defaults, **kwargs}
+        # print_kwargs = {p:p for p in kwargs if kwargs in ["end", "sep", "flush"]}
 
-        log_type = all_kwargs["type"]
+        # log_type = all_kwargs["type"]
         
-        name_tag = " " + self.__class__.__name__ + " "
-        # TODO: implementar tz extraido desde sesh | get_str_datetime ya tiene opcion de utc
-        time = get_str_datetime()
+        # if log_type == 'normal':
+        #     return print(*args, **print_kwargs)
+
+        # name_tag = " " + self.__class__.__name__ + " "
+        # # TODO: implementar tz extraido desde sesh | get_str_datetime ya tiene opcion de utc
+        # time = get_str_datetime()
         
-        tex_time_color = "#7F838E" if log_type == "strategy" else ("#C9E239" if log_type == "info" else "#F82141")
-        bg_tag_color = self.log_color
-        tex_tag_color = "#000000"
-        tex_mensage_color = self.log_color 
-        tex_circle_color = "#E0C125" if self.__status == "waiting" else (
-            "#41EE41" if self.__status == "live" else (
-            "#F82141" if self.__status == "stopped" else 
-            "#4AB2E2"))
-        bg_circle_color = None
+        # tex_time_color = "#7F838E" if log_type == "strategy" else ("#C9E239" if log_type == "info" else "#F82141")
+        # bg_tag_color = self.log_color
+        # tex_tag_color = "#000000"
+        # tex_mensage_color = self.log_color 
+        # tex_circle_color = "#E0C125" if self.__status == "waiting" else (
+        #     "#41EE41" if self.__status == "live" else (
+        #     "#F82141" if self.__status == "stopped" else 
+        #     "#4AB2E2"))
+        # bg_circle_color = None
 
-        if log_type == "error":
-            tex_circle_color, tex_time_color, tex_mensage_color = ("#F82141", "#F82141", "#F82141")
-            bg_circle_color = "#F82141"
+        # if log_type == "error":
+        #     tex_circle_color, tex_time_color, tex_mensage_color = ("#F82141", "#F82141", "#F82141")
+        #     bg_circle_color = "#F82141"
 
-        # Status Circle
-        print(ko("° ", tex=tex_circle_color, bg=bg_circle_color), end='') # ˱˳˲ °    ̐.  ◂▸
+        # # Status Circle
+        # print(ko("° ", tex=tex_circle_color, bg=bg_circle_color), end='') # ˱˳˲ °    ̐.  ◂▸
 
-        # time
-        ko.start(tex=tex_time_color, bg=None, sty=None)
-        print(time, end=' ')
+        # # time
+        # ko.start(tex=tex_time_color, bg=None, sty=None)
+        # print(time, end=' ')
 
-        # name_tag
-        ko.start(tex=tex_tag_color, bg=bg_tag_color, sty="bold")
-        print(name_tag, end=f"{ko.end(return_repr=True)} ")
+        # # name_tag
+        # ko.start(tex=tex_tag_color, bg=bg_tag_color, sty="bold")
+        # print(name_tag, end=f"{ko.end(return_repr=True)} ")
 
-        # mesage
-        ko.start(tex=tex_mensage_color, bg=None, sty="bold")
-        print(*args, **print_kwargs)
+        # # mesage
+        # ko.start(tex=tex_mensage_color, bg=None, sty="bold")
+        # print(*args, **print_kwargs)
         
-        ko.end()
+        # ko.end()
+
+    def log(self, *args, **kwargs):
+        """Método de logging mejorado para estrategias"""
+        if not hasattr(self, '_log_manager'):
+            self._log_manager = StrategyLogManager(
+                strategy_name=self.__class__.__name__,
+                strategy_color=getattr(self, 'log_color', None),
+                status=self.__status
+            )
+        
+        # Actualizar el estado actual en el log manager
+        self._log_manager.status = self.__status
+        
+        if self.backtest_mode:
+            kwargs["time"] = self.sesh.index_time
+
+        # Delegar al log manager
+        return self._log_manager.log(*args, **kwargs)
 
     def start(self):
         self.__status = "live" 
@@ -350,6 +371,9 @@ class Strategy:
         # TODO: guardar reporte de la estrategia 
         pass
 
+    async def sleep(self, seconds: int):
+        """ Pausa la ejecucion de la estrategia por un tiempo en segundos """
+        await asyncio.sleep(seconds)
 
     async def init(self):
         """ """
@@ -414,7 +438,6 @@ class Strategy:
     @property
     def is_closed(self):
         return self.__status == "closed"
-
 
 class CryptoSesh(ABC):  
     """Sesión de trading para Bybit con funciones para operar"""
@@ -540,7 +563,7 @@ class CryptoSesh(ABC):
     async def get_time(self, tz: str = None) -> pd.Timestamp:
         pass
 
- 
+
     """ CONFIGURATION """
     
     @abstractclassmethod

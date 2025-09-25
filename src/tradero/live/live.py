@@ -1,5 +1,6 @@
 import asyncio
 from shutil import ExecError
+import traceback
 from pandas.tseries.frequencies import key
 from pybit.unified_trading import HTTP
 import pandas as pd
@@ -10,6 +11,7 @@ from functools import partial
 from tradero._util import eprint, info_log
 from tradero.models import CryptoSesh, Strategy
 from tradero._util import ColorWayGenerator
+import time
 
 def _run_strategies_in_process(strategies_instances: List[Strategy]) -> Never: 
     async def keyboard_interrupt_protocol(strategies_instances: List[Strategy] | Strategy):
@@ -17,22 +19,21 @@ def _run_strategies_in_process(strategies_instances: List[Strategy]) -> Never:
         if isinstance(strategies_instances, Strategy):
             strategies_instances = [strategies_instances]
 
-        for s in strategies_instances:
-            if s.status == "stopped":
+        for stgy in strategies_instances:
+            if stgy.status == "stopped":
                 continue
 
             try:
-                s.log(f"Deteniendo estrategia. Ejecutando on_stop 🔴 ")  # 🔴
-                s.stop()
-                await s.on_stop()
+                stgy.stop()
+                stgy.log(f"Deteniendo estrategia. Ejecutando on_stop 🔴 ")  # 🔴
+                await stgy.on_stop()
 
                 await asyncio.sleep(0.1)
             except Exception as e:
-                s.log(f"Error en on_stop de {s.__class__.__name__}: {e}", type="error")
+                stgy.log(f"Error en on_stop de {stgy.__class__.__name__}: {e}", type="error")
 
     async def error_protocol(strategy_instance: Strategy, exception=None):
-        strategy_instance.log(f"Excepción en {strategy_instance.__class__.__name__}: {exception}" , type="error")
-
+        strategy_instance.log(f"Excepción en {strategy_instance.__class__.__name__}: {exception}" , type="error") # TODO: Que guarde en un archivo la exepcion
         try:
             strategy_instance.log(f"Deteniendo estrategia. Ejecutando on_stop 🔴 ") 
             strategy_instance.stop()
@@ -40,26 +41,30 @@ def _run_strategies_in_process(strategies_instances: List[Strategy]) -> Never:
             # await asyncio.sleep(0.1)
         except Exception as e:
             strategy_instance.log(f"Error en al ejecutar on_stop de {strategy_instance.__class__.__name__}: {e}", type="error")
+
+        traceback.print_exc() # TODO: darle un mejor manejo
                         
     async def run_single_strategy(strategy_instance: Strategy) -> Never: #
         
         try:
-            strategy_instance.log(f"init 🔵")  
-            await strategy_instance.init()
-            await asyncio.sleep(0.1)
+            try:
+                strategy_instance.log(f"init 🔵")  
+                await strategy_instance.init()
+                time.sleep(0.1)
+                await asyncio.sleep(0.5)
+                
+            except Exception as e:
+                await error_protocol(strategy_instance, e)
 
             strategy_instance.start()
             strategy_instance.log(f"on_live 🟢") 
             await asyncio.sleep(0.1) 
-                
             while True:
                 if strategy_instance.status == "live":
                     try:
                         await strategy_instance.on_live()
                     except Exception as e:
                         await error_protocol(strategy_instance, e)
-                    
-                await asyncio.sleep(0.5) # TODO: volver el sleep un parametro de usuario
         finally:
             pass
         # except Exception as e:
@@ -89,16 +94,17 @@ def _run_strategies_multicore(strategies_instances: List[Strategy], max_workers:
     assert isinstance(max_workers, int) and max_workers > 0
 
     # setear colores de log
-    colors = ["#93D8E0FF", "#EACC92FF", "#C997DDFF", "#D88C9BFF", "#9EA2EFFF", "#B5F7B8FF", "#FDCBB0FF", "#88C4AFFF"]
-    [setattr(s, "log_color", colors[i % 8]) for i, s in enumerate(strategies_instances)]
+    colors = ["#A3DFE6FF", "#EDC77DFF", "#C997DDFF", "#DE9BA8FF", "#9EA2EFFF", "#A0B487FF", "#71CFD7FF", 
+        "#BCF599FF", "#E3A989FF", "#5EDDAEFF", "#6B80BFFF", "#AA429CFF", "#794AAFFF", "#D67C2EFF"]
+    [setattr(s, "log_color", colors[i % len(colors)]) for i, s in enumerate(strategies_instances)]
         
-    # Distribuir las estrategias en grupos 
+    # Distribuir las estrategias en grupos WWW
     total_strategies = len(strategies_instances)
-    works_to_use = min(total_strategies, max_workers) ; print(f"works_to_use: {works_to_use}")
-    strategies_groups = [strategies_instances[n_wrk::works_to_use] for n_wrk in range(works_to_use)] ; print(f"strategies_groups: {[list(map(lambda s: s.__class__.__name__, group)) for group in strategies_groups]}")
+    max_works_to_use = min(total_strategies, max_workers) #; print(f"works_to_use: {max_works_to_use}")
+    strategies_groups = [strategies_instances[n_wrk::max_works_to_use] for n_wrk in range(max_works_to_use)] # ; print(f"strategies_groups: {[list(map(lambda s: s.__class__.__name__, group)) for group in strategies_groups]}")
 
     loop = asyncio.get_event_loop()
-    with ProcessPoolExecutor(max_workers=works_to_use) as executor:
+    with ProcessPoolExecutor(max_workers=max_works_to_use) as executor:
         running_tasks = []
         for group in strategies_groups:
             running_tasks.append(
@@ -113,18 +119,18 @@ def _run_strategies_multicore(strategies_instances: List[Strategy], max_workers:
     finally:
         loop.close()
 
-def run_strategies(sesh: CryptoSesh, strategies: List[Strategy]):
+def run_strategies(sesh: CryptoSesh, strategies: List[Strategy], max_workers: int = None):
+    # try:
+    # intanciar estrategias
+    strategies_instances = [s(sesh) for s in strategies]
+    
     try:
-        # intanciar estrategias
-        strategies_instances = [s(sesh) for s in strategies]
-        
-        try:
-            _run_strategies_multicore(strategies_instances=strategies_instances) 
-        except KeyboardInterrupt:
-            info_log("\033[91m ======== Interrupción por teclado ======== \033[0m")
-        except Exception as e:
-            print(f"Error en run_strategies {e}")
+        _run_strategies_multicore(strategies_instances=strategies_instances, max_workers=max_workers)
     except KeyboardInterrupt:
-        print("run_strategies wiuuu")
+        info_log("\033[91m ======== Interrupción por teclado ======== \033[0m")
+    except Exception as e:
+        print(f"Error en run_strategies {e}")
+    # except KeyboardInterrupt:
+    #     print("run_strategies wiuuu")
 
 

@@ -1,7 +1,7 @@
 [project]
 name = "tradero"
-version = "0.2.1"
-description = "Add your description here"
+version = "0.3.0"
+description = "Framework completo de trading algorítmico con backtesting, trading en vivo, indicadores técnicos personalizados y herramientas avanzadas de gestión de riesgo"
 readme = "README.md"
 authors = [
     { name = "michiTrader", email = "iden.c63@gmail.com" }
@@ -16,6 +16,7 @@ dependencies = [
     "pandas>=2.3.2",
     "pathlib>=1.0.1",
     "pybit>=5.11.0",
+    "python-telegram-bot>=22.4",
     "tqdm>=4.67.1",
 ]
 

@@ -2,7 +2,7 @@ from .core import Strategy, cross, crossover
 
 # from . import ta 
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 __author__ = "michiTrader"
 __description__ = "Una librería Python para crear estrategias de trading"
 
@@ -10,4 +10,5 @@ __description__ = "Una librería Python para crear estrategias de trading"
 __all__ = ["Strategy", "cross", "crossover"]
     
 
+    
     

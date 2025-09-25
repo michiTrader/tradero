@@ -1,7 +1,7 @@
 from tradero.live.exchanges.bybit import BybitSesh
 from tradero.test import BTCUSDT
 from tradero.backtesting import Backtest, Strategy
-from tradero.risk import entry_adjustment, tp_by_ratio, sl_by_ratio, size_by_risk, sl_adjustment, tp_adjustment
+from tradero.risk import adjust_entry, tp_by_ratio, sl_by_ratio, size_by_risk, adjust_sl, adjust_tp
 from tradero.ta import PIVOT, RGXPIVOT, NBS, ZIGZAG, RSI
 import re 
 from tradero.test.demo_keys import api, secret
@@ -90,9 +90,9 @@ class Neutralizers_5P(Strategy):
                 tp = self.D
                 sl = sl_by_ratio(ratio=self.sl_ratio, entry=entry, tp=tp)
                 # Adjustment
-                tp = tp_adjustment(entry, tp, adjustment=self.tp_adjustment)
-                sl = sl_adjustment(entry, sl, adjustment=self.sl_adjustment)
-                price = entry_adjustment(entry_original=entry, sl=sl, adjust_factor=self.entry_adjust_factor)
+                tp = adjust_tp(entry, tp, adjustment=self.tp_adjustment)
+                sl = adjust_sl(entry, sl, adjustment=self.sl_adjustment)
+                price = adjust_entry(entry_original=entry, sl=sl, adjust_factor=self.entry_adjust_factor)
                 # Calcular el size depues de los ajustes
                 size = size_by_risk(risk=self.risk, cash=total_equity, entry=price, sl=sl)
             

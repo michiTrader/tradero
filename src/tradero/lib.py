@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timezone, timedelta
 
-def get_str_datetime(utc: str = None):
+def get_str_datetime_now(utc: str = None):
     utc_str = utc
     if utc is None:
         # Obtener hora local con zona del sistema
@@ -36,7 +36,7 @@ def read_csv_ohlc(rute) -> 'DataOHLC':
     from .models import DataOHLC
     str_objects = rute.split('\\')[-1].split('_')
     symbol_name = str_objects[0]
-    timeframe = str_objects[1]
+    timeframe = None # str_objects[1]
     content = pd.read_csv(rute, parse_dates=True).to_dict(orient='list')
     content["datetime"] = np.array(content["datetime"], dtype='datetime64[ms]')
     return DataOHLC(content=content, timeframe=timeframe, symbol=symbol_name)
@@ -153,7 +153,7 @@ def find_minutes_timeframe(index: Union[pd.DatetimeIndex, np.ndarray]) -> int:
     first_time = index[1]
     second_time = index[0]
     
-    return (first_time - second_time).total_seconds() // 60  # Convertir segundos a minutos  # Retorna un entero con los minutos completos
+    return int((first_time - second_time).total_seconds() // 60)  # Convertir segundos a minutos  # Retorna un entero con los minutos completos
 
 def npdt64_to_datetime(np_dt64):
     """Convierte numpy.datetime64 a datetime de Python"""

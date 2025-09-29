@@ -48,7 +48,7 @@ def _run_strategies_in_process(strategies_instances: List[Strategy]) -> Never:
         
         try:
             try:
-                strategy_instance.log(f"init 🔵")  
+                strategy_instance.log(f"Inicializando...")  
                 await strategy_instance.init()
                 time.sleep(0.1)
                 await asyncio.sleep(0.5)
@@ -57,7 +57,7 @@ def _run_strategies_in_process(strategies_instances: List[Strategy]) -> Never:
                 await error_protocol(strategy_instance, e)
 
             strategy_instance.start()
-            strategy_instance.log(f"on_live 🟢") 
+            strategy_instance.log(f"on_live 🟢...") 
             await asyncio.sleep(0.1) 
             while True:
                 if strategy_instance.status == "live":

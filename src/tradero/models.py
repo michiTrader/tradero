@@ -113,6 +113,11 @@ class DataOHLC:
         """Obtiene un array desde el caché o lo carga si no está."""
         return self.__arrays[key]
 
+    # def __get_array(self, key):
+    #     # Usar getattr con objeto.__getattribute__ para evitar recursión
+    #     arrays = object.__getattribute__(self, '_DataOHLC__arrays')  # o como se llame tu atributo
+    #     return arrays[key]
+
     def __len__(self) -> int:
         """Longitud actual de los datos."""
         return self.__len
@@ -163,12 +168,31 @@ class DataOHLC:
             # Handle string keys (column names)
             return self.__get_array(key)
 
-    def __getattr__(self, key) -> _Array:
-        """Acceso tipo atributo a las columnas OHLCV."""
+    # def __getattr__(self, key) -> _Array:
+    #     """Acceso tipo atributo a las columnas OHLCV."""
+    #     try:
+    #         return self.__get_array(key)
+    #     except KeyError:
+    #         raise AttributeError(f"Columna '{key}' no encontrada") from None
+
+    def __getattr__(self, key):
+        # Evitar recursión infinita
+        if key.startswith('_'):  # o cualquier condición que evite el bucle
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
+        
         try:
             return self.__get_array(key)
         except KeyError:
-            raise AttributeError(f"Columna '{key}' no encontrada") from None
+            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
+    
+
+    # def __getstate__(self):
+    #     # Retorna el estado que puede ser serializado
+    #     return self.__dict__.copy()
+
+    # def __setstate__(self, state):
+    #     # Restaura el estado después de deserializar
+    #     self.__dict__.update(state)
 
     @property
     def timeframe(self) -> str:
@@ -282,15 +306,6 @@ class Strategy:
             cancel_all_orders
         """
         return self.sesh
-
-    def optimize(self, *args, **kwargs):
-        """ """
-        # # Backtetear y optimizar parametros (la estrategia debe ser compatible con backtesting.py)
-        # bt = backtesting.optimize(self, data)  (visualizacion por ejemplo)
-
-        # # setear los parametros optimizados
-        # self.params = bt.best_paramas
-        pass
 
     # def log(self, *args, **kwargs): # strategy info normal
         # defaults = {

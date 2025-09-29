@@ -100,7 +100,7 @@ class Neutralizers_5P(Strategy):
 # klines = BTCUSDT[:8000].resample("5m")#[1600:2000]
 packet = {"BTCUSDT": BTCUSDT[:5000].resample("1min")}#[1600:2000]
 bt = Backtest(strategy=Neutralizers_5P, packet=packet, margin=1/20, cash=100_000, warmup=50)
-stats = bt.run(mae_metric_type="ROE", p_bar=True)
+stats = bt.run(mae_metric_type="ROE", pbar=True)
 bt.plot( 
     plot_equity=False,
     plot_return=True,

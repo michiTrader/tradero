@@ -20,7 +20,6 @@ def sl_by_ratio(entry, tp, ratio=1/1):
     else:
         tp_dist = entry - tp
         return entry + tp_dist * ratio
-
 def tp_by_ratio(entry, sl, ratio=1/1):
     """
     Calcula el Take Profit basado en la distancia al Stop Loss y un ratio determinado.
@@ -41,7 +40,6 @@ def tp_by_ratio(entry, sl, ratio=1/1):
     else:
         sl_dist = sl - entry  
         return entry - sl_dist * ratio
-
 def size_by_risk(cash, risk, entry, sl):
     """
         Calcula el tamaño de la posición basado en el riesgo porcentual.
@@ -82,7 +80,6 @@ def adjust_sl(entry, sl, adjustment=1):
     is_buy = entry > sl
     new_sl_dist = abs(entry - sl) * adjustment
     return (entry - new_sl_dist) if is_buy else (entry + new_sl_dist)
-
 def adjust_tp(entry, tp, adjustment=1):
     """
     Ajusta el Take Profit basado en la distancia desde el entry.
@@ -104,7 +101,6 @@ def adjust_tp(entry, tp, adjustment=1):
     is_buy = tp > entry
     new_tp_dist = abs(tp - entry) * adjustment
     return (entry + new_tp_dist) if is_buy else (entry - new_tp_dist)
-
 def adjust_entry(entry_original, sl, adjust_factor=0):
     """
     Calcula el precio de entrada ajustado basado en la distancia al Stop Loss.
@@ -129,7 +125,6 @@ def adjust_entry(entry_original, sl, adjust_factor=0):
     else:
         # Para SHORT: ajuste positivo baja la entrada (más conservador, más lejos del SL)  
         return entry_original - (sl_dist * adjust_factor)
-
 def adjust_size(size, step, min_size=0, max_size=float('inf')):
     """
         Ajusta un tamaño dado para que sea un múltiplo de un 'step' específico,
@@ -150,7 +145,6 @@ def adjust_size(size, step, min_size=0, max_size=float('inf')):
     # Respetar min y max
     size = max(min_size, min(size, max_size))
     return size
-
 def adjust_leverage(notional, risk_limit: list[dict]):
     """ Ajusta el apalancamiento maximo basado en el size y el diccionario de limites de riesgo (risk_limit). """
     # Filtrar apalancamientos disponibles basados en el size

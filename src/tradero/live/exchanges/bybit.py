@@ -253,8 +253,8 @@ class BybitSesh(CryptoSesh):
                 )
             )
             # print (f"Nivel de apalancamiento para {symbol} establecido en {leverage}.")
-        except:
-            raise ValueError("No se pudo establecer el nivel de apalancamiento|margen.")
+        except Exception as e:
+            raise ValueError(f"No se pudo establecer el nivel de apalancamiento|margen. Error: {str(e)}")
 
     async def set_margin_mode(self, margin_mode: str = "insolated"):
         """ 
@@ -693,7 +693,7 @@ class BybitSesh(CryptoSesh):
 
         if current_size > 0:
             if current_side == "Buy": # Si tienes una posición larga, vende para cerrar
-                print(f"Cerrando posición larga de {current_size} {symbol}...")
+                # print(f"Cerrando posición larga de {current_size} {symbol}...")
                 order = await asyncio.get_event_loop().run_in_executor(
                     None, 
                     lambda: self._session.place_order(
@@ -704,9 +704,9 @@ class BybitSesh(CryptoSesh):
                         qty=str(current_size), # Cantidad para cerrar la posición
                     )
                 )
-                print(f"Orden de cierre (venta) ejecutada: {order}")
+                # print(f"Orden de cierre (venta) ejecutada: {order}")
             elif current_side == "Sell": # Si tienes una posición corta, compra para cerrar
-                print(f"Cerrando posición corta de {current_size} {symbol}...")
+                # print(f"Cerrando posición corta de {current_size} {symbol}...")
                 order = await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: self._session.place_order(
@@ -717,7 +717,7 @@ class BybitSesh(CryptoSesh):
                         qty=str(current_size), # Cantidad para cerrar la posición
                     )
                 )
-                print(f"Orden de cierre (compra) ejecutada: {order}")
+                # print(f"Orden de cierre (compra) ejecutada: {order}")
         else:
             # print(f"No hay posición abierta para {symbol}.")
             pass

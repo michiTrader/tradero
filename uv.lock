@@ -387,11 +387,6 @@ wheels = [
 ]
 
 [[package]]
-name = "kollor"
-version = "0.1.0"
-source = { directory = "../kollor" }
-
-[[package]]
 name = "llvmlite"
 version = "0.44.0"
 source = { registry = "https://pypi.org/simple" }
@@ -627,6 +622,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/4a/82/3a721f7d69dca802befb8af08b7c79ebcab461007ce1c18bd91a5d5896f9/pillow-11.3.0-cp314-cp314t-win_amd64.whl", hash = "sha256:8924748b688aa210d79883357d102cd64690e56b923a186f35a82cbc10f997db", size = 7121500, upload-time = "2025-07-01T09:15:48.512Z" },
     { url = "https://files.pythonhosted.org/packages/89/c7/5572fa4a3f45740eaab6ae86fcdf7195b55beac1371ac8c619d880cfe948/pillow-11.3.0-cp314-cp314t-win_arm64.whl", hash = "sha256:79ea0d14d3ebad43ec77ad5272e6ff9bba5b679ef73375ea760261207fa8e0aa", size = 2512835, upload-time = "2025-07-01T09:15:50.399Z" },
 ]
+
+[[package]]
+name = "pintar"
+version = "0.2.1"
+source = { git = "https://github.com/michiTrader/pintar.git#bdbd8bebf8b4e52e951fcafb91b14f873a92c3a2" }
 
 [[package]]
 name = "platformdirs"
@@ -952,16 +952,16 @@ wheels = [
 
 [[package]]
 name = "tradero"
-version = "0.3.0"
+version = "0.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "bokeh" },
     { name = "ipykernel" },
-    { name = "kollor" },
     { name = "numba" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "pathlib" },
+    { name = "pintar" },
     { name = "pybit" },
     { name = "pytest" },
     { name = "python-telegram-bot" },
@@ -972,11 +972,11 @@ dependencies = [
 requires-dist = [
     { name = "bokeh", specifier = ">=3.8.0" },
     { name = "ipykernel", specifier = ">=6.30.1" },
-    { name = "kollor", directory = "../kollor" },
     { name = "numba", specifier = ">=0.61.2" },
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "pandas", specifier = ">=2.3.2" },
     { name = "pathlib", specifier = ">=1.0.1" },
+    { name = "pintar", git = "https://github.com/michiTrader/pintar.git" },
     { name = "pybit", specifier = ">=5.11.0" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "python-telegram-bot", specifier = ">=22.4" },

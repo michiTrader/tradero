@@ -12,9 +12,9 @@ def sl_by_ratio(entry, tp, ratio=1/1):
     Returns:
     - float: Precio del Stop Loss calculado
     """
-    direction = "buy" if entry < tp else "sell"
+    is_buy = tp > entry
     
-    if direction == "buy":
+    if is_buy:
         tp_dist = tp - entry
         return entry - tp_dist * ratio
     else:
@@ -32,9 +32,9 @@ def tp_by_ratio(entry, sl, ratio=1/1):
     Returns:
     - float: Precio del Take Profit calculado
     """
-    direction = "buy" if entry > sl else "sell"
+    is_buy = entry > sl
     
-    if direction == "buy":
+    if is_buy:
         sl_dist = entry - sl
         return entry + sl_dist * ratio
     else:
@@ -116,10 +116,10 @@ def adjust_entry(entry_original, sl, adjust_factor=0):
     Returns:
     - float: Precio de entrada ajustado
     """
-    direction = "buy" if entry_original > sl else "sell"
+    is_buy = entry_original > sl
     sl_dist = abs(entry_original - sl)
     
-    if direction == "buy":
+    if is_buy:
         # Para LONG: ajuste positivo sube la entrada (más conservador, más lejos del SL)
         return entry_original + (sl_dist * adjust_factor)
     else:

@@ -1,5 +1,5 @@
 from tradero.lib import get_str_datetime_now
-from kollor import ko
+from pintar import dye
 from enum import Enum
 from dataclasses import dataclass
 from typing import Dict, Optional
@@ -33,7 +33,7 @@ class LogColorManager:
     # Colores por tipo de log
     LOG_COLORS = {
         LogType.STRATEGY: "#7F838E",
-        LogType.INFO: "#DEEA99FF", 
+        LogType.INFO: "#DEF462FF", 
         LogType.ERROR: "#F82141",
         LogType.NORMAL: "#A6AAB5FF"
     }
@@ -65,12 +65,12 @@ class LogColorManager:
         
         # Caso especial para errores
         if log_type == LogType.ERROR:
-            time_color = message_color = circle_color = "#F82141"
-            circle_bg = "#F82141"
+            time_color = message_color = circle_color = cls.LOG_COLORS[LogType.ERROR]
+            circle_bg = circle_color
 
         if log_type == LogType.INFO:
-            time_color = message_color = circle_color = "#CCE635"
-            circle_bg = "#CCE635"
+            time_color = message_color = circle_color = cls.LOG_COLORS[LogType.INFO]
+            circle_bg = circle_color
         
         return ColorScheme(
             time=time_color,
@@ -100,7 +100,7 @@ class StrategyLogManager:
         
         config = {**defaults, **kwargs}
         log_type_str = config["type"]
-        
+
         # Caso especial para log normal
         if log_type_str == 'normal':
             print_kwargs = self._get_print_kwargs(**config)
@@ -128,22 +128,21 @@ class StrategyLogManager:
     def _print_formatted_log(self, colors: ColorScheme, timestamp: str, name_tag: str, *args, **print_kwargs):
         """Imprime el log con formato completo"""
         # Círculo de estado
-        print(ko("° ", tex=colors.circle, bg=colors.circle_bg), end='')
+        print(dye("° ", tex=colors.circle, bg=colors.circle_bg), end='')
         
         # Timestamp
-        ko.start(tex=colors.time, bg=None, sty=None)
+        dye.start(tex=colors.time, bg=None, sty=None)
         print(timestamp, end=' ')
         
         # Etiqueta del nombre
-        ko.start(tex="#000000", bg=self.strategy_color, sty="bold")
-        print(name_tag, end=f"{ko.end(return_repr=True)} ")
+        dye.start(tex="#000000", bg=self.strategy_color, sty="bold")
+        print(name_tag, end=f"{dye.end(return_repr=True)} ")
         
         # Mensaje
-        ko.start(tex=colors.message, bg=None, sty="bold")
+        dye.start(tex=colors.message, bg=None, sty="bold")
         print(*args, **print_kwargs)
         
-        ko.end()
-
+        dye.end()
 
 class ColorWayGenerator:
     """

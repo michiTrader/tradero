@@ -12,7 +12,7 @@ from .lib import timeframe2minutes, minutes2timeframe, find_minutes_timeframe, g
 from .stats import Stats
 # from .ta import PivotIndicator
 import traceback
-from kollor import ko
+from pintar import dye
 from tradero._util import StrategyLogManager
 
 """

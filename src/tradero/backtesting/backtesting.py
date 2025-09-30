@@ -10,7 +10,7 @@ from collections import deque
 from typing import Dict, Optional, Union, List, Any, Callable
 from datetime import datetime
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
 from tradero.lib import timeframe2minutes, npdt64_to_datetime
 from tradero.models import DataOHLC, Strategy
@@ -21,7 +21,7 @@ from bokeh.layouts import gridplot
 from bokeh.io import show, output_notebook
 import itertools
 import copy
-from kollor import ko
+from pintar import dye
 
 class Order:
     __slots__ = ['id', 'symbol', 'size', 'price', 'order_type', 'side', 
@@ -1998,7 +1998,7 @@ class _CryptoBacktestSesh:
         return self.broker.closed_trades
 
 
-def _log_wrapper_function_that_does_nothing(*args, **kwargs): return None
+def _log_wrapper_function_that_does_nothing(*args, **kwargs): pass
 
 class Backtest:
     """Clase principal para ejecutar backtests con estrategias"""
@@ -2056,9 +2056,6 @@ class Backtest:
         # indicar a la estrategia que está en modo backtest para que el time del log sea correcto
         self._strategy.backtest_mode = True
 
-        # modificar el metodo log y sleep de Strategy para que no imprima en consola
-        self._overwrite_sleep_method_in_strategy()
-
         # Traer los blueprints de indicadores
         self._indicator_blueprints = self._sim_sesh.indicator_blueprints
 
@@ -2068,11 +2065,8 @@ class Backtest:
 
         self._strategy_config = None
 
-    def _overwrite_sleep_method_in_strategy(self):
-        """Sobrescribe un método de la estrategia con una nueva implementación"""
-
-        async def sleep(self, seconds): None# No hacer nada en backtest
-        self._strategy.sleep = types.MethodType(sleep, self._strategy)
+    # def _overwrite_sleep_method_in_strategy(self):
+    #     """Sobrescribe un método de la estrategia con una nueva implementación"""
 
     def _process_data_parameter(self, data): # TODO
         """Procesa el parámetro data según su tipo y lo convierte al formato esperado"""
@@ -2115,7 +2109,7 @@ class Backtest:
             total=effective_bars, 
             desc=pbar_desc, # ꞏ 
             leave=True,
-            # ncols=120,
+            ncols=100,
             # dynamic_ncols=True,
             disable=not pbar,
             colour=self._bar_color, #'#B86217', #03A7D0, #AA77DA
@@ -2191,6 +2185,10 @@ class Backtest:
         """ Ejejcutar backtest de forma syncrona """
         self._start_run_time = time.time()
 
+        # modificar el metodo log y sleep de Strategy para que no imprima en consola
+        # sobrescribir Strategy.sleep para que no haga nada
+        async def sleep(self, seconds): pass
+        self._strategy.sleep = types.MethodType(sleep, self._strategy)
         # Desactivar los logs
         if not log:
             self._strategy.log = _log_wrapper_function_that_does_nothing
@@ -2316,18 +2314,27 @@ class Backtest:
 
         # crear copias con todas las conbinaciones de parametros
         combo_param_dicts = [dict(zip(param_names, combo)) for combo in param_combinations] 
+        print(f" • Optimizando ({len(param_combinations)}) combinaciones de parametros...")
 
-        print(f"Optimizando {len(param_combinations)} combinaciones de parametros...", end="\n\n")
         # Extraer los backtestings con las configuraciones de parametros de estrategia
         multi_backtests = []
         for param_dict in combo_param_dicts:
-            bt_copy = copy.copy(self)
+            bt_copy = copy.deepcopy(self)
             bt_copy._strategy_config = param_dict
             multi_backtests.append(bt_copy)
 
         # Ejecutar todos los backtestings en PARALELO
         pbar_desc = f" • 〽Otimizing {" "+self._strategy.name+" ":ꞏ^20}"
-        stats_list = run_backtests(multi_backtests, pbar=True, pbar_desc=pbar_desc)
+        stats_list = run_backtests(multi_backtests, pbar=True, pbar_desc=pbar_desc, return_exceptions=True)
+
+        # Filtrar y manejar excepciones
+        exceptions = [stats for stats in stats_list if isinstance(stats, Exception)]
+        valid_stats =[stats for stats in stats_list if isinstance(stats, Stats)]
+        if exceptions:
+            print(f" • Se encontraron ({len(exceptions)}) excepciones en los backtestings durante la optimizacion:\n    {dye(exceptions, '#F1CF45')}")
+        if not valid_stats:
+            raise ValueError("No se obtuvieron estadísticas válidas. Verifique los backtestings.")
+
         # Extrae el parametro a optimizar
         objective = maximize or minimize
         is_maximizing = bool(maximize)
@@ -2343,7 +2350,7 @@ class Backtest:
 
         # Evaluar todas las combinaciones
         results = []
-        for i, stats in enumerate(stats_list):
+        for i, stats in enumerate(valid_stats):
             score = eval_func(stats)
             results.append({
                 'stats': stats,
@@ -2362,8 +2369,7 @@ class Backtest:
         for p in best_stats_result['params']: 
             final_stats_result[p] = best_stats_result['params'][p]
         
-        print(f" • 〽Optimizing {" "+self._strategy.name+" ":ꞏ^20}:", ko("█"*25, "#C5F06EFF"), "100%", end="\n\n") #▌▐ █
-
+        print(f"\n • 〽Optimizing {" "+self._strategy.name+" ":ꞏ^20}: 100% ﴾" + f"{dye("█"*31, "#C5F06EFF")}" + '﴿' , end="\n\n") #█
         return final_stats_result
 
     @property
@@ -2371,7 +2377,7 @@ class Backtest:
         return self._sim_sesh
 
 
-def run_backtests(backtests: list[Backtest], pbar=True, pbar_desc=None, log=False):
+def run_backtests(backtests: list[Backtest], pbar=True, pbar_desc=None, log=False, return_exceptions=False) -> list[Stats | Exception]:
     """Permite ejecutar uno o mas backtestings en Paralelo"""
 
     # Asignar color de barra a cada backtest
@@ -2383,9 +2389,24 @@ def run_backtests(backtests: list[Backtest], pbar=True, pbar_desc=None, log=Fals
         bt._bar_color = color[0:7] # limpiar el codigo hex de caracteres adicionales
 
     # Ejecutar backtests en paralelos
+    # with ProcessPoolExecutor() as executor:
+    #     futures = [executor.submit(Backtest.run, bt, pbar, pbar_desc, log) for bt in backtests] 
+    #     results = [f.result() for f in futures] 
+
+    # Ejecutar backtests en paralelos
     with ProcessPoolExecutor() as executor:
         futures = [executor.submit(Backtest.run, bt, pbar, pbar_desc, log) for bt in backtests] 
-        results = [f.result() for f in futures] 
+
+        results = []
+        for f in as_completed(futures):
+            try:
+                result = f.result()
+                results.append(result)
+            except Exception as e:
+                if return_exceptions:
+                    results.append(e)
+                else:
+                    results.append(None)
 
     # Limpiar terminal después de todos los procesos
     import sys

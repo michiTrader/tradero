@@ -1,6 +1,6 @@
 [project]
 name = "tradero"
-version = "0.4.0"
+version = "0.4.1"
 description = "Framework completo de trading algorítmico con backtesting, trading en vivo, indicadores técnicos personalizados y herramientas avanzadas de gestión de riesgo"
 readme = "README.md"
 authors = [
@@ -10,11 +10,11 @@ requires-python = ">=3.13"
 dependencies = [
     "bokeh>=3.8.0",
     "ipykernel>=6.30.1",
-    "kollor",
     "numba>=0.61.2",
     "numpy>=2.2.6",
     "pandas>=2.3.2",
     "pathlib>=1.0.1",
+    "pintar",
     "pybit>=5.11.0",
     "pytest>=8.4.2",
     "python-telegram-bot>=22.4",
@@ -26,7 +26,7 @@ requires = ["uv_build>=0.8.15,<0.9.0"]
 build-backend = "uv_build"
 
 [tool.uv.sources]
-kollor = { path = "../kollor" }
+pintar = { git = "https://github.com/michiTrader/pintar.git" }
 
 
 

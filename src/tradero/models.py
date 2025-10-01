@@ -13,7 +13,7 @@ from .stats import Stats
 # from .ta import PivotIndicator
 import traceback
 from pintar import dye
-from tradero._util import StrategyLogManager
+from tradero._util import StrategyLogManager, _as_str
 
 """
     Una Sesh debe tener las siguientes funciones: 
@@ -269,14 +269,40 @@ class DataOHLC:
         """Devuelve True si no hay datos disponibles."""
         return self.__len == 0
 
+
+
 class Strategy:
-    """ Clase base para estrategias de trading en Live"""
-    def __init__(self, sesh): # , sesh: BybitSesh
+    """ Clase base para estrategias de trading en Live""" 
+    def __init__(self, sesh, params: dict, on_backtest=False): # , sesh: BybitSesh
         self.sesh = sesh 
         self.__status = "waiting" # waiting , stopped, live
-        self.log_color = None
-        self.backtest_mode = False
+        self.on_backtest = on_backtest
+        self._params = self.update_params(params) 
         
+        self.log_color = None
+
+    def __str__(self):
+        params = ','.join(f'{i[0]}={i[1]}' for i in zip(self._params.keys(),
+                                                        map(_as_str, self._params.values())))
+        if params:
+            params = '(' + params + ')'
+        return f'{self.__class__.__name__}{params}'
+
+    def __repr__(self):
+        return '<Strategy ' + str(self) + '>'
+        
+    def update_params(self, params):
+        if params is None: return
+
+        for k, v in params.items():
+            if not hasattr(self, k):
+                raise AttributeError(
+                    f"La estrategia '{self.__class__.__name__}' no tiene el parámetro '{k}'."
+                    "La clase de la estrategia debe definir los parámetros como variables de clase antes de que "
+                    "puedan ser optimizados o ejecutados.")
+            setattr(self, k, v) 
+        return params
+
     def set_sesh(self, sesh):
         self.sesh = sesh
         return self
@@ -359,7 +385,7 @@ class Strategy:
         # ko.end()
 
     def log(self, *args, **kwargs):
-        """Método de logging mejorado para estrategias"""
+        """Método de logging durante la ejecucion de una Estrategia"""
         if not hasattr(self, '_log_manager'):
             self._log_manager = StrategyLogManager(
                 strategy_name=self.__class__.__name__,
@@ -370,8 +396,8 @@ class Strategy:
         # Actualizar el estado actual en el log manager
         self._log_manager.status = self.__status
         
-        if self.backtest_mode:
-            kwargs["time"] = self.sesh.index_time
+        if self.on_backtest:
+            kwargs["time"] = self.sesh.now
 
         # Delegar al log manager
         return self._log_manager.log(*args, **kwargs)
@@ -454,6 +480,7 @@ class Strategy:
     def is_closed(self):
         return self.__status == "closed"
 
+
 class CryptoSesh(ABC):  
     """Sesión de trading para Bybit con funciones para operar"""
 
@@ -504,6 +531,11 @@ class CryptoSesh(ABC):
     @property
     def equity(self):
         pass
+
+    @property # OBLIGATORIO TODO: NotImplementedError
+    def now(self) -> pd.Timestamp:
+        pass 
+    
 
     """ DATA """
     @abstractclassmethod
@@ -580,7 +612,6 @@ class CryptoSesh(ABC):
 
 
     """ CONFIGURATION """
-    
     @abstractclassmethod
     async def set_time_zone(self, tz: str):
         pass
@@ -845,3 +876,21 @@ class CryptoSesh(ABC):
                                     category=option, puedes pasar Order.
         """
         pass
+
+    @abstractclassmethod
+    async def cancel_order(self, symbol, order_id) -> dict:
+        """
+            Cancela una orden abierta por su ID.
+
+            Args:
+                category (str): Categoría del símbolo (por ejemplo, "linear", "Spot").
+                symbol (str): Símbolo para el que se desea cancelar la orden.
+                order_id (str): ID de la orden que se desea cancelar.
+
+            Returns:
+                dict: Respuesta de la cancelación de la orden.
+        """
+        pass
+
+
+

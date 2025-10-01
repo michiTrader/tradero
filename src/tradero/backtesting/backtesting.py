@@ -1349,12 +1349,13 @@ class _CryptoBacktestSesh:
         main_data = self.data_provider.packet[self.main_symbol]
         return pd.Series(self._equity_curve, index=main_data.df.index, name='Equity')
 
-    @property
-    def index_time(self):
+    @property 
+    def now(self) -> pd.Timestamp:
         """Obtiene el timestamp del bar actual con conversión de timezone solo si se especifica"""
         # TODO: que data_provider devuelva mejor una pd.timestamp en vez de un numpy.datetime64
         numpy_datetime = self.data_provider.request(idx=self.current_index, symbol=self.main_symbol, limit=1).index[-1]
         return numpy_datetime.astype("M8[ms]").astype("O") # objeto datetime de python
+
 
     @property
     async def total_equity(self):
@@ -1998,7 +1999,383 @@ class _CryptoBacktestSesh:
         return self.broker.closed_trades
 
 
-def _log_wrapper_function_that_does_nothing(*args, **kwargs): pass
+# def _log_wrapper_function_that_does_nothing(*args, **kwargs): pass
+
+# class Backtest:
+    # """Clase principal para ejecutar backtests con estrategias"""
+    # def __init__(self, strategy: Strategy, packet: Dict[str, DataOHLC], cash: float = 100_000, 
+    #              maker_fee: float = 0.000, taker_fee: float = 0.000, 
+    #              margin: float = 0.1, margin_mode: str = 'ISOLATED_MARGIN', 
+    #              mae_mfe_metric_type='ROI', tz: str = "UTC",
+    #              warmup: int = 0,
+    # ):
+    #     self._total_bars = len(packet)
+    #     self._strategy_obj = strategy
+    #     self._warmup = max(0, warmup)  # Asegurar que no sea negativo
+        
+    #     # Procesar el parámetro data según su tipo
+    #     # processed_data = self._process_data_parameter(packet)
+    #     self._packet = packet
+    #     self._symbols = list(packet.keys())
+    #     # Determinar la longitud de los datos
+    #     self._packet_data_length = len(packet[self._symbols[0]])
+
+    #     # Validar que el warmup no sea mayor que los datos disponibles
+    #     if self._warmup >= self._packet_data_length:
+    #         raise ValueError(f"El período de warmup ({self._warmup}) no puede ser mayor o igual al número de barras disponibles ({self._packet_data_length})")
+        
+    #     # Crear sesión de backtest con warmup
+    #     self._sim_sesh = _CryptoBacktestSesh(
+    #         packet=self._packet,
+    #         cash=cash,
+    #         maker_fee=maker_fee,
+    #         taker_fee=taker_fee,
+    #         # margin=margin,
+    #         margin_mode=margin_mode,
+    #         mae_mfe_metric_type=mae_mfe_metric_type,
+    #         tz=tz,
+    #         warmup_period=self._warmup  # Pasar warmup a la sesión
+    #     )
+
+    #     # Initialize backtest attributes
+    #     self._cash = cash
+    #     self._packet = packet
+    #     self._maker_fee = maker_fee
+    #     self._taker_fee = taker_fee
+    #     self._margin = margin
+    #     self._margin_mode = margin_mode
+    #     self._mae_mfe_metric_type = mae_mfe_metric_type
+    #     self._tz = tz
+    #     self._warmup = warmup
+
+    #     # Inicializar variable para almacenar resultados
+    #     self._results = None
+
+    #     # Instanciar estrategia y concederle permisos de session
+    #     self._strategy = _strategy_obj(self._sim_sesh)
+
+    #     # indicar a la estrategia que está en modo backtest para que el time del log sea correcto
+    #     self._strategy.backtest_mode = True
+
+    #     # Traer los blueprints de indicadores
+    #     self._indicator_blueprints = self._sim_sesh.indicator_blueprints
+
+    #     self._current_timestamp = None
+
+    #     self._info = False
+
+    #     self._strategy_config = None
+
+    # # def _overwrite_sleep_method_in_strategy(self):
+    # #     """Sobrescribe un método de la estrategia con una nueva implementación"""
+
+    # def _process_data_parameter(self, data): # TODO
+    #     """Procesa el parámetro data según su tipo y lo convierte al formato esperado"""
+    #     pass
+
+    # def reset(self):
+    #     """Reinicia el backtest"""
+    #     self._sim_sesh.reset()
+    #     # Reinicializar current_index con warmup
+    #     self._sim_sesh.current_index = self._warmup
+    #     self._sim_sesh.warmup_completed = False
+    #     self._strategy = self._strategy(**self._strategy_params).set_sesh(self._sim_sesh)
+
+    # async def _run(self, pbar, pbar_desc=None, mae_metric_type="ROI") -> Stats:
+    #     """Ejecuta el backtest completo con barra de progreso avanzada"""
+    #     effective_bars = self._packet_data_length - self._warmup
+
+    #     # Implementar atributos instanciados de la estrategia
+    #     if self._strategy_config is not None:
+    #         [setattr(self._strategy, k, v) for k, v in self._strategy_config.items()] 
+
+    #     # Calcular tiempo inicial 
+    #     self.start_time = time.time() 
+        
+    #     # Inicializar estrategia
+    #     await self._strategy.init()
+
+    #     # pre-Limpiar terminal de barras duplicadas
+    #     print("\r", end="")  # Retorno de carro para limpiar línea actual   
+    #     print("\033[K", end="")  # Limpiar desde cursor hasta final de línea
+
+    #     # Crear barra de progreso con posición específica
+    #     if pbar_desc is None:
+    #         pbar_desc = f" • 〽Backtesting {" "+self._strategy.name+" ":ꞏ^20}"
+
+    #     if not hasattr(self, "_bar_color"):
+    #         self._bar_color =  "#03A7D0"
+            
+    #     progress_bar = tqdm(
+    #         total=effective_bars, 
+    #         desc=pbar_desc, # ꞏ 
+    #         leave=True,
+    #         ncols=100,
+    #         # dynamic_ncols=True,
+    #         disable=not pbar,
+    #         colour=self._bar_color, #'#B86217', #03A7D0, #AA77DA
+    #         position=0,
+    #         bar_format='{desc} {percentage:3.0f}% ﴾{bar}﴿ [{elapsed}<{remaining}, {rate_fmt}]{postfix}', # ⌠⌡ |││ ﴾﴿
+    #         miniters=100,
+    #         mininterval=0.25,
+    #         maxinterval=5.0,
+    #     )
+        
+    #     # Iterar por cada barra
+    #     bars_processed = 0
+    #     strategy_bars = 0 
+        
+    #     try:
+    #         while self._sim_sesh.next():
+    #             bars_processed += 1
+                
+    #             # Solo ejecutar estrategia después del período de warmup
+    #             if self._sim_sesh.warmup_completed:
+    #                 await self._strategy.on_live()
+
+    #                 strategy_bars += 1
+    #                 progress_bar.update()
+                    
+    #         await self._strategy.on_stop()
+            
+    #     finally:
+    #         # progress_bar.colour = "#8DBA54"
+    #         progress_bar.disable = True
+    #         progress_bar.leave = True
+    #         progress_bar.refresh()
+    #         progress_bar.close()
+
+    #     # Calcular tiempo final
+    #     self.total_time = time.time() - self.start_time
+
+    #     # Limpiar terminal de barras duplicadas
+    #     print("\r", end="")  # Retorno de carro para limpiar línea actual   
+    #     print("\033[K", end="")  # Limpiar desde cursor hasta final de línea
+    #     # Calcular estadísticas completas
+    #     summary = self._sim_sesh.get_broker_summary()
+    #     trades = self._sim_sesh.get_closed_trades()
+        
+    #     # Obtener datos OHLC y equity curve
+    #     # Asumiendo que los datos están en el primer símbolo si es un diccionario
+    #     if isinstance(self._packet, dict):
+    #         first_symbol = list(self._packet.keys())[0]
+    #         ohlc_data = self._packet[first_symbol].df
+    #     else:
+    #         ohlc_data = self._packet.df if hasattr(self._packet, 'df') else self._packet
+        
+    #     # Calcular estadísticas completas
+    #     equity_curve = self._sim_sesh.equity_curve.bfill()
+    #     stats = compute_stats(
+    #         trades=trades,
+    #         ohlc_data=ohlc_data,
+    #         equity_curve=equity_curve,
+    #         strategy_instance=self._strategy,
+    #         mae_metric_type=mae_metric_type
+    #     )
+
+    #     # Guardar los indicadores de la sesion
+    #     self._indicator_blueprints = self._sim_sesh.indicator_blueprints
+        
+    #     # Guardar resultados en self._results
+    #     self._results = stats
+        
+    #     return stats
+    #     # return summary, trades
+
+    # def run(self, pbar=True, pbar_desc=None, log=False, mae_metric_type="ROI"): # _run_bt_as_sync
+    #     """ Ejejcutar backtest de forma syncrona """
+    #     self._start_run_time = time.time()
+
+    #     # modificar el metodo log y sleep de Strategy para que no imprima en consola
+    #     # sobrescribir Strategy.sleep para que no haga nada
+    #     async def sleep(self, seconds): pass
+    #     self._strategy.sleep = types.MethodType(sleep, self._strategy)
+    #     # Desactivar los logs
+    #     if not log:
+    #         self._strategy.log = _log_wrapper_function_that_does_nothing
+
+    #     stats = asyncio.run(self._run(pbar=pbar, pbar_desc=pbar_desc, mae_metric_type=mae_metric_type))
+
+    #     self._total_run_time = time.time() - self._start_run_time
+
+    #     return stats
+
+    # def plot(self, 
+    #     results=None,
+    #     filename=None,
+    #     plot_equity=True,
+    #     plot_return=False,
+    #     # plot_pl=True,
+    #     plot_volume=True,
+    #     # plot_drawdown=False,
+    #     plot_trades=True,
+    #     # smooth_equity=False,
+    #     relative_equity=True,
+    #     # superimpose=True,
+    #     # superimpose_freq_rule=None,
+    #     resample=True,
+    #     resample_freq_rule=None,
+    #     # show_legend=True,
+    #     timeframe=None
+    # ):
+    #     """
+    #         Genera un gráfico interactivo del backtest usando Bokeh
+            
+    #         Args:
+    #             results: Resultados del backtest (usa self._results si es None)
+    #             filename: Nombre del archivo para guardar (opcional)
+    #             plot_width: Ancho del gráfico
+    #             plot_equity: Si mostrar curva de equity
+    #             plot_return: Si mostrar returns
+    #             plot_pl: Si mostrar P&L
+    #             plot_volume: Si mostrar volumen
+    #             plot_drawdown: Si mostrar drawdown
+    #             plot_trades: Si mostrar trades en el gráfico
+    #             smooth_equity: Si suavizar la curva de equity
+    #             relative_equity: Si mostrar equity relativo
+    #             superimpose: Si superponer indicadores
+    #             superimpose_freq_rule: Regla de frecuencia para superposición
+    #             resample: Si remuestrear datos
+    #             resample_freq_rule: Regla de frecuencia para remuestreo
+    #             show_legend: Si mostrar leyenda
+    #             **kwargs: Argumentos adicionales para indicadores
+            
+    #         Returns:
+    #             Layout de Bokeh con el gráfico completo
+    #     """
+
+    #     # Usar resultados almacenados si no se proporcionan
+    #     if results is None:
+    #         if self._results is None:
+    #             raise ValueError("No hay resultados disponibles. Ejecuta bt.run() primero.")
+    #         results = self._results
+        
+    #     # Obtener datos OHLC principales
+    #     if isinstance(self._packet, dict):
+    #         # Si es un diccionario, usar el primer símbolo
+    #         first_symbol = list(self._packet.keys())[0]
+    #         main_ohlc_data = self._packet[first_symbol]
+    #     else:
+    #         # Si es un objeto Data único
+    #         main_ohlc_data = self._packet# if hasattr(self._data, 'df') else self._data
+        
+    #     # Configurar output para notebook si es necesario
+    #     try:
+    #         # Verificar si estamos en un notebook
+    #         from IPython import get_ipython
+    #         if get_ipython() is not None:
+    #             output_notebook()
+    #     except ImportError:
+    #         pass
+        
+    #     # Mostrar el gráfico
+    #     if filename:
+    #         from bokeh.io import output_file
+    #         output_file(filename)
+        
+    #     # Convertir a Data object
+    #     # main_ohlc_data = Data(main_ohlc_data)
+    #     return _plot(
+    #         stats=results,
+    #         ohlc_base_data=main_ohlc_data,
+    #         indicators_blueprints=self._indicator_blueprints,
+    #         timeframe=timeframe,
+    #         plot_equity = plot_equity,
+    #         plot_return = plot_return,
+    #         # TODO plot_drawdown = plot_drawdown,
+    #         plot_trades = plot_trades,
+    #         plot_volume = plot_volume,
+    #         relative_equity = relative_equity
+    #     )
+
+    # def optimize(self, maximize=None, minimize=None, constraint=None, **combo):
+    #     """
+    #         Optimizar los parametros de la estrategia
+            
+    #         Args:
+    #             params: Diccionario con parametros a optimizar
+    #     """
+    #     # Validaciones de entrada
+    #     if maximize and minimize:
+    #         raise AssertionError("No se puede especificar tanto maximize como minimize")
+        
+    #     if not (maximize or minimize):
+    #         raise AssertionError("Se debe especificar maximize o minimize")
+        
+    #     if not combo:
+    #         raise ValueError("Se deben proporcionar parámetros para optimizar")
+        
+    #     param_names = combo.keys()
+    #     param_combinations = list(itertools.product(*combo.values()))
+    #     if constraint:
+    #         param_combinations = [
+    #             comb for comb in param_combinations 
+    #             if constraint(types.SimpleNamespace(**dict(zip(param_names, comb))))
+    #         ]
+
+    #     # crear copias con todas las conbinaciones de parametros
+    #     combo_param_dicts = [dict(zip(param_names, combo)) for combo in param_combinations] 
+    #     print(f" • Optimizando ({len(param_combinations)}) combinaciones de parametros...")
+
+    #     # Extraer los backtestings con las configuraciones de parametros de estrategia 
+    #     multi_backtests = []
+    #     for param_dict in combo_param_dicts:
+    #         bt_copy = copy.deepcopy(self)
+    #         bt_copy._strategy_config = param_dict
+    #         multi_backtests.append(bt_copy)
+
+    #     # Ejecutar todos los backtestings en PARALELO
+    #     pbar_desc = f" • 〽Otimizing {" "+self._strategy.name+" ":ꞏ^20}"
+    #     stats_list = run_backtests(multi_backtests, pbar=True, pbar_desc=pbar_desc, return_exceptions=True)
+
+    #     # Filtrar y manejar excepciones
+    #     exceptions = [stats for stats in stats_list if isinstance(stats, Exception)]
+    #     valid_stats =[stats for stats in stats_list if isinstance(stats, Stats)]
+    #     if exceptions:
+    #         print(f" • Se encontraron ({len(exceptions)}) excepciones en los backtestings durante la optimizacion:\n    {dye(exceptions, '#F1CF45')}")
+    #     if not valid_stats:
+    #         raise ValueError("No se obtuvieron estadísticas válidas. Verifique los backtestings.")
+
+    #     # Extrae el parametro a optimizar
+    #     objective = maximize or minimize
+    #     is_maximizing = bool(maximize)
+
+    #     # Convertir a funcion
+    #     if isinstance(objective, str):
+    #         def eval_func(stats):
+    #             if objective not in stats:
+    #                 raise KeyError(f"Métrica '{objective}' no encontrada en estadísticas")
+    #             return stats[objective]
+    #     else:
+    #         eval_func = objective
+
+    #     # Evaluar todas las combinaciones
+    #     results = []
+    #     for i, stats in enumerate(stats_list):
+    #         score = eval_func(stats)
+    #         results.append({
+    #             'stats': stats,
+    #             'score': score,
+    #             'params': combo_param_dicts[i],
+    #             'index': i
+    #         })
+
+    #     # Encontrar el mejor resultado
+    #     results.sort(key= lambda x: x['score'], reverse=is_maximizing)
+    #     best_stats_result = results[0]
+        
+    #     # Preparar resultado final
+    #     final_stats_result = best_stats_result['stats'].copy()
+    #     # Asignar a la serie Stats los parametros usados
+    #     for p in best_stats_result['params']: 
+    #         final_stats_result[p] = best_stats_result['params'][p]
+        
+    #     print(f"\n • 〽Optimizing {" "+self._strategy.name+" ":ꞏ^20}: 100% ﴾" + f"{dye("█"*31, "#C5F06EFF")}" + '﴿' , end="\n\n") #█
+    #     return final_stats_result
+
+    # @property
+    # def sesh(self):
+    #     return self._sim_sesh
 
 class Backtest:
     """Clase principal para ejecutar backtests con estrategias"""
@@ -2006,10 +2383,10 @@ class Backtest:
                  maker_fee: float = 0.000, taker_fee: float = 0.000, 
                  margin: float = 0.1, margin_mode: str = 'ISOLATED_MARGIN', 
                  mae_mfe_metric_type='ROI', tz: str = "UTC",
-                 warmup: int = 0,
+                 warmup: int = 0, strategy_config: dict = None,
     ):
         self._total_bars = len(packet)
-        self._strategy = strategy
+        self._strategy_obj = strategy
         self._warmup = max(0, warmup)  # Asegurar que no sea negativo
         
         # Procesar el parámetro data según su tipo
@@ -2046,24 +2423,23 @@ class Backtest:
         self._mae_mfe_metric_type = mae_mfe_metric_type
         self._tz = tz
         self._warmup = warmup
+        self._strategy_config = strategy_config
 
         # Inicializar variable para almacenar resultados
         self._results = None
 
-        # Instanciar estrategia y concederle permisos de session
-        self._strategy = strategy(self._sim_sesh)
+        # # Instanciar estrategia y concederle permisos de session
+        # self._strategy = _strategy_obj(self._sim_sesh)
 
-        # indicar a la estrategia que está en modo backtest para que el time del log sea correcto
-        self._strategy.backtest_mode = True
+        # # indicar a la estrategia que está en modo backtest para que el time del log sea correcto
+        # self._strategy_obj.backtest_mode = True
 
         # Traer los blueprints de indicadores
         self._indicator_blueprints = self._sim_sesh.indicator_blueprints
 
         self._current_timestamp = None
-
         self._info = False
 
-        self._strategy_config = None
 
     # def _overwrite_sleep_method_in_strategy(self):
     #     """Sobrescribe un método de la estrategia con una nueva implementación"""
@@ -2078,18 +2454,19 @@ class Backtest:
         # Reinicializar current_index con warmup
         self._sim_sesh.current_index = self._warmup
         self._sim_sesh.warmup_completed = False
-        self._strategy = self._strategy(**self._strategy_params).set_sesh(self._sim_sesh)
+        # self._strategy = self._strategy_obj(**self._strategy_params).set_sesh(self._sim_sesh)
 
     async def _run(self, pbar, pbar_desc=None, mae_metric_type="ROI") -> Stats:
         """Ejecuta el backtest completo con barra de progreso avanzada"""
-        effective_bars = self._packet_data_length - self._warmup
 
-        # Configurar cls de estrategia con parámetros
-        if self._strategy_config is not None:
-            [setattr(self._strategy, k, v) for k, v in self._strategy_config.items()] 
+        effective_bars = self._packet_data_length - self._warmup
+     
+        # Instanciar estrategia, concederle permisos de session y setear parametros
+        # indicar a la estrategia que está en modo backtest para que el time del log sea correcto
+        self._strategy: Strategy = self._strategy_obj(sesh=self._sim_sesh, params=self._strategy_config, on_backtest=True)
 
         # Calcular tiempo inicial 
-        self.start_time = time.time()
+        self.start_time = time.time() 
         
         # Inicializar estrategia
         await self._strategy.init()
@@ -2183,19 +2560,18 @@ class Backtest:
 
     def run(self, pbar=True, pbar_desc=None, log=False, mae_metric_type="ROI"): # _run_bt_as_sync
         """ Ejejcutar backtest de forma syncrona """
-        self._start_run_time = time.time()
+        start_run_time = time.time()
 
-        # modificar el metodo log y sleep de Strategy para que no imprima en consola
-        # sobrescribir Strategy.sleep para que no haga nada
-        async def sleep(self, seconds): pass
-        self._strategy.sleep = types.MethodType(sleep, self._strategy)
-        # Desactivar los logs
-        if not log:
-            self._strategy.log = _log_wrapper_function_that_does_nothing
+        # Sobrescribir los metodos log y sleep de Strategy 
+        def _log_wrapper_function_that_does_nothing(*args, **kwargs): pass
+        async def _sleep_function_that_does_nothing(self, seconds): pass
+        # Sobrescribir
+        self._strategy_obj.sleep = _sleep_function_that_does_nothing
+        self._strategy_obj.log = _log_wrapper_function_that_does_nothing if not log else self._strategy_obj.log # Desactivar los logs
 
         stats = asyncio.run(self._run(pbar=pbar, pbar_desc=pbar_desc, mae_metric_type=mae_metric_type))
 
-        self._total_run_time = time.time() - self._start_run_time
+        self._total_run_time = time.time() - start_run_time
 
         return stats
 
@@ -2287,6 +2663,91 @@ class Backtest:
             relative_equity = relative_equity
         )
 
+    # def optimize(self, maximize=None, minimize=None, constraint=None, **combo):
+        # """
+        #     Optimizar los parametros de la estrategia
+            
+        #     Args:
+        #         params: Diccionario con parametros a optimizar
+        # """
+        # # Validaciones de entrada
+        # if maximize and minimize:
+        #     raise AssertionError("No se puede especificar tanto maximize como minimize")
+        
+        # if not (maximize or minimize):
+        #     raise AssertionError("Se debe especificar maximize o minimize")
+        
+        # if not combo:
+        #     raise ValueError("Se deben proporcionar parámetros para optimizar")
+        
+        # param_names = combo.keys()
+        # param_combinations = list(itertools.product(*combo.values()))
+        # if constraint:
+        #     param_combinations = [
+        #         comb for comb in param_combinations 
+        #         if constraint(types.SimpleNamespace(**dict(zip(param_names, comb))))
+        #     ]
+
+        # # crear copias con todas las conbinaciones de parametros
+        # combo_param_dicts = [dict(zip(param_names, combo)) for combo in param_combinations] 
+        # print(f" • Optimizando ({len(param_combinations)}) combinaciones de parametros...")
+
+        # # Extraer los backtestings con las configuraciones de parametros de estrategia 
+        # multi_backtests = []
+        # for param_dict in combo_param_dicts:
+        #     bt_copy = copy.deepcopy(self)
+        #     bt_copy._strategy_config = param_dict
+        #     multi_backtests.append(bt_copy)
+
+        # # Ejecutar todos los backtestings en PARALELO
+        # pbar_desc = f" • 〽Otimizing {" "+self._strategy.name+" ":ꞏ^20}"
+        # stats_list = run_backtests(multi_backtests, pbar=True, pbar_desc=pbar_desc, return_exceptions=True)
+
+        # # Filtrar y manejar excepciones
+        # exceptions = [stats for stats in stats_list if isinstance(stats, Exception)]
+        # valid_stats =[stats for stats in stats_list if isinstance(stats, Stats)]
+        # if exceptions:
+        #     print(f" • Se encontraron ({len(exceptions)}) excepciones en los backtestings durante la optimizacion:\n    {dye(exceptions, '#F1CF45')}")
+        # if not valid_stats:
+        #     raise ValueError("No se obtuvieron estadísticas válidas. Verifique los backtestings.")
+
+        # # Extrae el parametro a optimizar
+        # objective = maximize or minimize
+        # is_maximizing = bool(maximize)
+
+        # # Convertir a funcion
+        # if isinstance(objective, str):
+        #     def eval_func(stats):
+        #         if objective not in stats:
+        #             raise KeyError(f"Métrica '{objective}' no encontrada en estadísticas")
+        #         return stats[objective]
+        # else:
+        #     eval_func = objective
+
+        # # Evaluar todas las combinaciones
+        # results = []
+        # for i, stats in enumerate(stats_list):
+        #     score = eval_func(stats)
+        #     results.append({
+        #         'stats': stats,
+        #         'score': score,
+        #         'params': combo_param_dicts[i],
+        #         'index': i
+        #     })
+
+        # # Encontrar el mejor resultado
+        # results.sort(key= lambda x: x['score'], reverse=is_maximizing)
+        # best_stats_result = results[0]
+        
+        # # Preparar resultado final
+        # final_stats_result = best_stats_result['stats'].copy()
+        # # Asignar a la serie Stats los parametros usados
+        # for p in best_stats_result['params']: 
+        #     final_stats_result[p] = best_stats_result['params'][p]
+        
+        # print(f"\n • 〽Optimizing {" "+self._strategy.name+" ":ꞏ^20}: 100% ﴾" + f"{dye("█"*31, "#C5F06EFF")}" + '﴿' , end="\n\n") #█
+        # return final_stats_result
+
     def optimize(self, maximize=None, minimize=None, constraint=None, **combo):
         """
             Optimizar los parametros de la estrategia
@@ -2294,13 +2755,13 @@ class Backtest:
             Args:
                 params: Diccionario con parametros a optimizar
         """
+        start_time = time.time()
+
         # Validaciones de entrada
         if maximize and minimize:
-            raise AssertionError("No se puede especificar tanto maximize como minimize")
-        
+            raise AssertionError("No se puede especificar tanto maximize como minimize")        
         if not (maximize or minimize):
-            raise AssertionError("Se debe especificar maximize o minimize")
-        
+            raise AssertionError("Se debe especificar maximize o minimize")        
         if not combo:
             raise ValueError("Se deben proporcionar parámetros para optimizar")
         
@@ -2316,22 +2777,28 @@ class Backtest:
         combo_param_dicts = [dict(zip(param_names, combo)) for combo in param_combinations] 
         print(f" • Optimizando ({len(param_combinations)}) combinaciones de parametros...")
 
-        # Extraer los backtestings con las configuraciones de parametros de estrategia
-        multi_backtests = []
-        for param_dict in combo_param_dicts:
+        # Crear las copias de Backtest configuradas con la estretegia copia configurada
+        backtests_copies = []
+        # XXX: cambiar por un sharedmemorymanager para no hacer cientos de copias de la data
+        for i, combo_dict in enumerate(combo_param_dicts):
+            # crear copia de este Backtest principal
             bt_copy = copy.deepcopy(self)
-            bt_copy._strategy_config = param_dict
-            multi_backtests.append(bt_copy)
+
+            bt_copy._strategy_config = combo_dict
+
+            # Añadir el bt
+            backtests_copies.append(bt_copy)
 
         # Ejecutar todos los backtestings en PARALELO
-        pbar_desc = f" • 〽Otimizing {" "+self._strategy.name+" ":ꞏ^20}"
-        stats_list = run_backtests(multi_backtests, pbar=True, pbar_desc=pbar_desc, return_exceptions=True)
+        pbar_desc = f" • 〽Otimizing {" " + self._strategy_obj.__name__ + " ":ꞏ^20}"
+        stats_list = run_backtests(backtests_copies, pbar=True, pbar_desc=pbar_desc, return_exceptions=True)
 
         # Filtrar y manejar excepciones
         exceptions = [stats for stats in stats_list if isinstance(stats, Exception)]
         valid_stats =[stats for stats in stats_list if isinstance(stats, Stats)]
         if exceptions:
-            print(f" • Se encontraron ({len(exceptions)}) excepciones en los backtestings durante la optimizacion:\n    {dye(exceptions, '#F1CF45')}")
+            print(f" • Durante la optimizacion Se encontraron ({len(exceptions)}) excepciones de tipo:")
+            [print(f"    {dye(e, '#F1DB82FF')}") for e in list(set(exceptions))]
         if not valid_stats:
             raise ValueError("No se obtuvieron estadísticas válidas. Verifique los backtestings.")
 
@@ -2350,13 +2817,11 @@ class Backtest:
 
         # Evaluar todas las combinaciones
         results = []
-        for i, stats in enumerate(valid_stats):
+        for stats in stats_list:
             score = eval_func(stats)
             results.append({
                 'stats': stats,
-                'score': score,
-                'params': combo_param_dicts[i],
-                'index': i
+                'score': score
             })
 
         # Encontrar el mejor resultado
@@ -2365,12 +2830,13 @@ class Backtest:
         
         # Preparar resultado final
         final_stats_result = best_stats_result['stats'].copy()
-        # Asignar a la serie Stats los parametros usados
-        for p in best_stats_result['params']: 
-            final_stats_result[p] = best_stats_result['params'][p]
         
-        print(f"\n • 〽Optimizing {" "+self._strategy.name+" ":ꞏ^20}: 100% ﴾" + f"{dye("█"*31, "#C5F06EFF")}" + '﴿' , end="\n\n") #█
+        self._total_optimizing_time = time.time() - start_time
+        print(f"\n • 〽Optimizing {" " + self._strategy_obj.__name__ + " ":ꞏ^20}: "
+            "100% ﴾" + f"{dye("█"*31, "#C5F06EFF")}" + '﴿' 
+            f" [{self._total_optimizing_time:.2f}s]" , end="\n\n") #█
         return final_stats_result
+
 
     @property
     def sesh(self):
@@ -2387,11 +2853,6 @@ def run_backtests(backtests: list[Backtest], pbar=True, pbar_desc=None, log=Fals
     for i, bt in enumerate(backtests):
         color = colors[i % len(colors)]
         bt._bar_color = color[0:7] # limpiar el codigo hex de caracteres adicionales
-
-    # Ejecutar backtests en paralelos
-    # with ProcessPoolExecutor() as executor:
-    #     futures = [executor.submit(Backtest.run, bt, pbar, pbar_desc, log) for bt in backtests] 
-    #     results = [f.result() for f in futures] 
 
     # Ejecutar backtests en paralelos
     with ProcessPoolExecutor() as executor:

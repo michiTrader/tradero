@@ -16,6 +16,7 @@ class Stats(pd.Series):
         # Personalizar la representación para mostrar mejor las estadísticas
         return super().__repr__()
 
+
 def optimize_take_profit(mfe, returns, range_step=0.01):
     """
         Optimiza el nivel de **Take Profit (TP)** para maximizar el balance acumulado en un conjunto de operaciones,

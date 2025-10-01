@@ -45,6 +45,11 @@ class BybitSesh(CryptoSesh):
         return self._session.get_balance(
             cacountType=self._account_type, coin=self._base_coin)["result"]["list"][0]["totalEquity"]
 
+    @property # OBLIGATORIO TODO: NotImplementedError
+    def now(self) -> pd.Timestamp:
+        pass 
+    
+
     """ DATA """
     async def get_kline(self,
         symbol: str,
@@ -484,6 +489,7 @@ class BybitSesh(CryptoSesh):
         )
         return list_result[::-1]
 
+
     """ Trading """
     async def _place_order(self,
                     symbol,
@@ -625,7 +631,7 @@ class BybitSesh(CryptoSesh):
             Returns:
                 dict: Información de la orden ejecutada
         """
-        response = await self._place_order(
+        resp = await self._place_order(
                             symbol=symbol,
                             side="Sell",
                             qty=size,
@@ -640,7 +646,7 @@ class BybitSesh(CryptoSesh):
         # order = await self.get_order(symbol, response["result"]["orderId"])
         # return order
 
-        return response["result"]
+        return resp["result"]
 
     async def buy(self,
             symbol: str,
@@ -669,7 +675,7 @@ class BybitSesh(CryptoSesh):
             Returns:
                 dict: Información de la orden ejecutada
         """
-        response = await self._place_order(
+        resp = await self._place_order(
             symbol=symbol,
             side="Buy",
             qty=size,
@@ -684,9 +690,9 @@ class BybitSesh(CryptoSesh):
         # order = await self.get_order(symbol, response["result"]["orderId"])
         # return order
         # TODO: !!!!! en bybit tambien debería retornar solo la order id
-        return response["result"]
+        return resp["result"]
 
-    async def close_position(self, symbol):
+    async def close_position(self, symbol) -> (dict | None):
         position_info = await self.get_position_status(symbol=symbol)
         current_size = position_info["size"]
         current_side = position_info["side"]
@@ -694,7 +700,7 @@ class BybitSesh(CryptoSesh):
         if current_size > 0:
             if current_side == "Buy": # Si tienes una posición larga, vende para cerrar
                 # print(f"Cerrando posición larga de {current_size} {symbol}...")
-                order = await asyncio.get_event_loop().run_in_executor(
+                resp = await asyncio.get_event_loop().run_in_executor(
                     None, 
                     lambda: self._session.place_order(
                         category=self._category,
@@ -704,10 +710,11 @@ class BybitSesh(CryptoSesh):
                         qty=str(current_size), # Cantidad para cerrar la posición
                     )
                 )
+                return resp["result"]
                 # print(f"Orden de cierre (venta) ejecutada: {order}")
             elif current_side == "Sell": # Si tienes una posición corta, compra para cerrar
                 # print(f"Cerrando posición corta de {current_size} {symbol}...")
-                order = await asyncio.get_event_loop().run_in_executor(
+                resp = await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: self._session.place_order(
                         category=self._category,
@@ -717,6 +724,7 @@ class BybitSesh(CryptoSesh):
                         qty=str(current_size), # Cantidad para cerrar la posición
                     )
                 )
+                return resp["result"]
                 # print(f"Orden de cierre (compra) ejecutada: {order}")
         else:
             # print(f"No hay posición abierta para {symbol}.")
@@ -775,7 +783,7 @@ class BybitSesh(CryptoSesh):
                 sl_limit_price = sl_price
 
         # Setear TP/SL
-        response = await asyncio.get_event_loop().run_in_executor(
+        resp = await asyncio.get_event_loop().run_in_executor(
             None,
             lambda: self._session.set_trading_stop(
                 category=self._category,
@@ -795,7 +803,7 @@ class BybitSesh(CryptoSesh):
             )
         )
 
-        return response
+        return resp
 
     async def cancel_all_orders(self, symbol, order_filter: str = None) -> dict:
         """
@@ -811,8 +819,7 @@ class BybitSesh(CryptoSesh):
                                         órdenes condicionales, órdenes TP/SL y órdenes de trailing stop
                                     category=option, puedes pasar Order.
         """
-
-        return await asyncio.get_event_loop().run_in_executor(
+        resp = await asyncio.get_event_loop().run_in_executor(
             None,
             lambda: self._session.cancel_all_orders(
                 category=self._category, 
@@ -820,9 +827,10 @@ class BybitSesh(CryptoSesh):
                 orderFilter=order_filter
             )
         )
+        return resp
     # NEW
     async def cancel_order(self, symbol, order_id):
-        return await asyncio.get_event_loop().run_in_executor(
+        resp = await asyncio.get_event_loop().run_in_executor(
             None,
             lambda: self._session.cancel_order(
                 category=self._category, 
@@ -830,5 +838,8 @@ class BybitSesh(CryptoSesh):
                 orderId=order_id
             )
         )
+        return resp["result"]
+
+
 
 

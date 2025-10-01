@@ -357,4 +357,17 @@ class Neutralizers_5P(Strategy):
         self.in_search_mode = False
 
 
+class Neutralizers_5P_BTC(Neutralizers_5P):
+    STGY_TIMEFRAME = "5min"
+    PAIR = "BTCUSDT"
 
+class Neutralizers_5P_XRP(Neutralizers_5P):
+    STGY_TIMEFRAME = "5min"
+    PAIR = "XRPUSDT"
+
+if __name__ == "__main__":
+    api = "adadsdadwdad"
+    secret = "adadsdadwdaddwadawdadwawdw23e"
+    sesh = BybitSesh(api, secret, category="linear")
+
+    run_strategies(sesh, [Neutralizers_5P_BTC, Neutralizers_5P_XRP], max_workers=1)

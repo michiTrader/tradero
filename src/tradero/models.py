@@ -12,8 +12,11 @@ from .lib import timeframe2minutes, minutes2timeframe, find_minutes_timeframe, g
 from .stats import Stats
 # from .ta import PivotIndicator
 import traceback
-from pintar import dye
-from tradero._util import StrategyLogManager, _as_str
+from tradero._util import StrategyLogManager, _as_str, CustomFormatter, LevelColorFormatTheme, BacktestLogger
+import logging
+from pathlib import Path
+from pintar import dye, Brush, Stencil
+import json
 
 """
     Una Sesh debe tener las siguientes funciones: 
@@ -269,11 +272,9 @@ class DataOHLC:
         """Devuelve True si no hay datos disponibles."""
         return self.__len == 0
 
-
-
 class Strategy:
     """ Clase base para estrategias de trading en Live""" 
-    def __init__(self, sesh, params: dict, on_backtest=False): # , sesh: BybitSesh
+    def __init__(self, sesh, params: dict = None, on_backtest=False): # , sesh: BybitSesh
         self.sesh = sesh 
         self.__status = "waiting" # waiting , stopped, live
         self.on_backtest = on_backtest
@@ -281,7 +282,11 @@ class Strategy:
         
         self.log_color = None
 
+        self.__logger = None
+        # TODO: ordenar
+
     def __str__(self):
+        # if self._params:
         params = ','.join(f'{i[0]}={i[1]}' for i in zip(self._params.keys(),
                                                         map(_as_str, self._params.values())))
         if params:
@@ -291,8 +296,61 @@ class Strategy:
     def __repr__(self):
         return '<Strategy ' + str(self) + '>'
         
+    def create_and_configure_logger(self):
+    
+        # Crear el direcorio de los logs
+        current_dir = Path.cwd() 
+        logs_path = current_dir / 'logs'
+        if not logs_path.exists():
+            logs_path.mkdir(exist_ok=True)
+
+        # definir el tipo de logger segun sea en modo backtest o live
+        if self.on_backtest:
+            logger = BacktestLogger(name=self.__class__.__name__, strategy=self)
+        else:
+            # 1. Obtener y configurar el logger (para procesar todos los mensajes)
+            logger = logging.getLogger(self.__class__.__name__)
+
+        logger.setLevel(logging.DEBUG)
+
+        # 2. Crear los manejadores (destinos)
+        file_handler = logging.FileHandler(logs_path / 'live.log')
+        stream_handler = logging.StreamHandler() 
+
+        update_config_stream = {
+            'debug': {'name': {'text_color': "#688193FF", 'style':1}}, 
+            'info': {'name': {'text_color': "#688193FF", 'style':1}},
+            'warning': {'name': {'text_color': "#BFD8FFFF", 'style':1}},
+            'error': {'name': {'text_color': "#BFD8FFFF", 'style':1}},
+        }
+
+        # 3. Crear el formateador
+        file_msg_formatter = CustomFormatter(
+            format_theme=LevelColorFormatTheme(
+                no_color=True
+            ))
+        custom_stream_formatter = CustomFormatter(
+            format_theme=LevelColorFormatTheme(
+                config=update_config_stream, no_color=False
+            ))
+
+        # 4. Conectar el formateador a cada manejador
+        file_handler.setFormatter(file_msg_formatter)
+        # stream_handler.setFormatter(formatter)
+        stream_handler.setFormatter(custom_stream_formatter)
+
+        # 5. Establecer niveles de filtro para cada manejador
+        file_handler.setLevel(logging.INFO)    # Solo guarda INFO y superiores en el archivo
+        stream_handler.setLevel(logging.DEBUG) # Muestra TODO, incluyendo DEBUG, en la consola
+
+        # 6. Añadir los manejadores al logger
+        logger.addHandler(file_handler)
+        logger.addHandler(stream_handler)
+
+        return logger
+
     def update_params(self, params):
-        if params is None: return
+        if params is None: return {}
 
         for k, v in params.items():
             if not hasattr(self, k):
@@ -301,7 +359,7 @@ class Strategy:
                     "La clase de la estrategia debe definir los parámetros como variables de clase antes de que "
                     "puedan ser optimizados o ejecutados.")
             setattr(self, k, v) 
-        return params
+        return params 
 
     def set_sesh(self, sesh):
         self.sesh = sesh
@@ -332,75 +390,6 @@ class Strategy:
             cancel_all_orders
         """
         return self.sesh
-
-    # def log(self, *args, **kwargs): # strategy info normal
-        # defaults = {
-        #     "end" : "\n",
-        #     "sep" : " ",
-        #     "flush" : False,
-        #     "type" : "strategy", # puede ser 'error', 'info' o 'normal'
-        # }
-
-        # all_kwargs = {**defaults, **kwargs}
-        # print_kwargs = {p:p for p in kwargs if kwargs in ["end", "sep", "flush"]}
-
-        # log_type = all_kwargs["type"]
-        
-        # if log_type == 'normal':
-        #     return print(*args, **print_kwargs)
-
-        # name_tag = " " + self.__class__.__name__ + " "
-        # # TODO: implementar tz extraido desde sesh | get_str_datetime ya tiene opcion de utc
-        # time = get_str_datetime()
-        
-        # tex_time_color = "#7F838E" if log_type == "strategy" else ("#C9E239" if log_type == "info" else "#F82141")
-        # bg_tag_color = self.log_color
-        # tex_tag_color = "#000000"
-        # tex_mensage_color = self.log_color 
-        # tex_circle_color = "#E0C125" if self.__status == "waiting" else (
-        #     "#41EE41" if self.__status == "live" else (
-        #     "#F82141" if self.__status == "stopped" else 
-        #     "#4AB2E2"))
-        # bg_circle_color = None
-
-        # if log_type == "error":
-        #     tex_circle_color, tex_time_color, tex_mensage_color = ("#F82141", "#F82141", "#F82141")
-        #     bg_circle_color = "#F82141"
-
-        # # Status Circle
-        # print(ko("° ", tex=tex_circle_color, bg=bg_circle_color), end='') # ˱˳˲ °    ̐.  ◂▸
-
-        # # time
-        # ko.start(tex=tex_time_color, bg=None, sty=None)
-        # print(time, end=' ')
-
-        # # name_tag
-        # ko.start(tex=tex_tag_color, bg=bg_tag_color, sty="bold")
-        # print(name_tag, end=f"{ko.end(return_repr=True)} ")
-
-        # # mesage
-        # ko.start(tex=tex_mensage_color, bg=None, sty="bold")
-        # print(*args, **print_kwargs)
-        
-        # ko.end()
-
-    def log(self, *args, **kwargs):
-        """Método de logging durante la ejecucion de una Estrategia"""
-        if not hasattr(self, '_log_manager'):
-            self._log_manager = StrategyLogManager(
-                strategy_name=self.__class__.__name__,
-                strategy_color=getattr(self, 'log_color', None),
-                status=self.__status
-            )
-        
-        # Actualizar el estado actual en el log manager
-        self._log_manager.status = self.__status
-        
-        if self.on_backtest:
-            kwargs["time"] = self.sesh.now
-
-        # Delegar al log manager
-        return self._log_manager.log(*args, **kwargs)
 
     def start(self):
         self.__status = "live" 
@@ -480,6 +469,15 @@ class Strategy:
     def is_closed(self):
         return self.__status == "closed"
 
+    @property
+    def logger(self):
+        if not self.__logger:
+            self.__logger = self.create_and_configure_logger()
+        return self.__logger
+
+    @logger.setter
+    def logger(self, logger):
+        self.__logger = logger
 
 class CryptoSesh(ABC):  
     """Sesión de trading para Bybit con funciones para operar"""
@@ -891,6 +889,8 @@ class CryptoSesh(ABC):
                 dict: Respuesta de la cancelación de la orden.
         """
         pass
+
+
 
 
 

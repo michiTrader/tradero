@@ -1,17 +1,21 @@
-import asyncio
-from shutil import ExecError
-import traceback
-from pandas.tseries.frequencies import key
-from pybit.unified_trading import HTTP
-import pandas as pd
-import psutil
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-from typing import List, Never, Coroutine, Any
-from functools import partial
-from tradero._util import eprint, info_log
-from tradero.models import CryptoSesh, Strategy
-from tradero._util import ColorWayGenerator
-import time
+import asyncio 
+from shutil import ExecError 
+import traceback 
+from pandas.tseries.frequencies import key 
+from pybit.unified_trading import HTTP 
+import pandas as pd 
+import psutil 
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor  
+from typing import List, Never, Coroutine, Any 
+from functools import partial 
+from tradero.models import CryptoSesh, Strategy 
+from tradero._util import ColorWayGenerator, eprint, info_log, try_, has_internet_connection
+import time 
+from requests.exceptions import ReadTimeout
+from pintar import Stencil, dye, Brush
+
+RED_BRUSH = Brush.load('#FF7272FF')
+GREEN_BRUSH = Brush.load('#99FFB1FF')
 
 def _run_strategies_in_process(strategies_instances: List[Strategy]) -> Never: 
     async def keyboard_interrupt_protocol(strategies_instances: List[Strategy] | Strategy):
@@ -25,22 +29,22 @@ def _run_strategies_in_process(strategies_instances: List[Strategy]) -> Never:
 
             try:
                 stgy.stop()
-                stgy.log(f"Deteniendo estrategia. Ejecutando on_stop 🔴 ")  # 🔴
+                stgy.logger.warning(f"Deteniendo estrategia. Ejecutando on_stop {RED_BRUSH('°')}")   # TODO 🔴
                 await stgy.on_stop()
 
                 await asyncio.sleep(0.1)
             except Exception as e:
-                stgy.log(f"Error en on_stop de {stgy.__class__.__name__}: {e}", type="error")
+                stgy.logger.error(f"Error en on_stop de {stgy.__class__.__name__}")
 
     async def error_protocol(strategy_instance: Strategy, exception=None):
-        strategy_instance.log(f"Excepción en {strategy_instance.__class__.__name__}: {exception}" , type="error") # TODO: Que guarde en un archivo la exepcion
+        strategy_instance.logger.error(f"Excepción en {strategy_instance.__class__.__name__}: {exception}" ) # TODO: Que guarde en un archivo la exepcion
         try:
-            strategy_instance.log(f"Deteniendo estrategia. Ejecutando on_stop 🔴 ") 
+            strategy_instance.logger.warning(f"Deteniendo estrategia. Ejecutando on_stop {RED_BRUSH('°')} ")  # TODO 🔴
             strategy_instance.stop()
             await strategy_instance.on_stop()
             # await asyncio.sleep(0.1)
         except Exception as e:
-            strategy_instance.log(f"Error en al ejecutar on_stop de {strategy_instance.__class__.__name__}: {e}", type="error")
+            strategy_instance.logger.error(f"Error en al ejecutar on_stop de {strategy_instance.__class__.__name__}")
 
         traceback.print_exc() # TODO: darle un mejor manejo
                         
@@ -48,21 +52,25 @@ def _run_strategies_in_process(strategies_instances: List[Strategy]) -> Never:
         
         try:
             try:
-                strategy_instance.log(f"Inicializando...")  
+                strategy_instance.logger.warning(f"Inicializando...")  
                 await strategy_instance.init()
                 time.sleep(0.1)
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.5) 
                 
             except Exception as e:
                 await error_protocol(strategy_instance, e)
 
             strategy_instance.start()
-            strategy_instance.log(f"on_live 🟢...") 
+            strategy_instance.logger.warning(f"on_live {GREEN_BRUSH('°')} ...") # TODO: 🟢
             await asyncio.sleep(0.1) 
             while True:
                 if strategy_instance.status == "live":
                     try:
                         await strategy_instance.on_live()
+                    except ReadTimeout as e:
+                        if has_internet_connection():
+                            await asyncio.sleep(7)
+                        strategy_instance.logger.error(f"Sin conexion a internet se deben cerrar las operaciones/ordenes manualmente") 
                     except Exception as e:
                         await error_protocol(strategy_instance, e)
         finally:

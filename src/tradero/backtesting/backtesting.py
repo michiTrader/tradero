@@ -21,7 +21,7 @@ from bokeh.layouts import gridplot
 from bokeh.io import show, output_notebook
 import itertools
 import copy
-from pintar import dye
+from pintar import dye, Brush, Stencil
 
 class Order:
     __slots__ = ['id', 'symbol', 'size', 'price', 'order_type', 'side', 
@@ -2478,10 +2478,8 @@ class Backtest:
         # Crear barra de progreso con posición específica
         if pbar_desc is None:
             pbar_desc = f" • 〽Backtesting {" "+self._strategy.name+" ":ꞏ^20}"
-
         if not hasattr(self, "_bar_color"):
-            self._bar_color =  "#03A7D0"
-            
+            self._bar_color =  "#03A7D0"           
         progress_bar = tqdm(
             total=effective_bars, 
             desc=pbar_desc, # ꞏ 
@@ -2564,10 +2562,16 @@ class Backtest:
 
         # Sobrescribir los metodos log y sleep de Strategy 
         def _log_wrapper_function_that_does_nothing(*args, **kwargs): pass
+        class _logger_wrapper_that_does_nothing: 
+            def debug(msg, *args, **kwargs): pass
+            def info(msg, *args, **kwargs): pass
+            def warning(msg, *args, **kwargs): pass
+            def error(msg, *args, **kwargs): pass
+            def critical(msg, *args, **kwargs): pass
         async def _sleep_function_that_does_nothing(self, seconds): pass
         # Sobrescribir
         self._strategy_obj.sleep = _sleep_function_that_does_nothing
-        self._strategy_obj.log = _log_wrapper_function_that_does_nothing if not log else self._strategy_obj.log # Desactivar los logs
+        self._strategy_obj.logger = _logger_wrapper_that_does_nothing if not log else self._strategy_obj.logger # Desactivar los logs
 
         stats = asyncio.run(self._run(pbar=pbar, pbar_desc=pbar_desc, mae_metric_type=mae_metric_type))
 

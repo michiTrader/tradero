@@ -625,8 +625,8 @@ wheels = [
 
 [[package]]
 name = "pintar"
-version = "0.2.1"
-source = { git = "https://github.com/michiTrader/pintar.git#bdbd8bebf8b4e52e951fcafb91b14f873a92c3a2" }
+version = "0.5.0"
+source = { git = "https://github.com/michiTrader/pintar.git#3a3acb76b8e6d75e4115fc17c0e65c4b120b61cf" }
 
 [[package]]
 name = "platformdirs"
@@ -952,7 +952,7 @@ wheels = [
 
 [[package]]
 name = "tradero"
-version = "0.4.2"
+version = "0.4.5"
 source = { editable = "." }
 dependencies = [
     { name = "bokeh" },

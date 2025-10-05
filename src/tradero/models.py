@@ -12,10 +12,10 @@ from .lib import timeframe2minutes, minutes2timeframe, find_minutes_timeframe, g
 from .stats import Stats
 # from .ta import PivotIndicator
 import traceback
-from tradero._util import StrategyLogManager, _as_str, CustomFormatter, LevelColorFormatTheme, BacktestLogger
+from tradero._util import StrategyLogManager, _as_str, CustomFormatter, LevelFormatTheme, BacktestLogger
 import logging
 from pathlib import Path
-from pintar import dye, Brush, Stencil
+from pintar import dye, Brush, Stencil, RGB, HEX
 import json
 
 """
@@ -274,21 +274,23 @@ class DataOHLC:
 
 class Strategy:
     """ Clase base para estrategias de trading en Live""" 
-    def __init__(self, sesh, params: dict = None, on_backtest=False): # , sesh: BybitSesh
+    def __init__(self, sesh, params: dict = None, on_backtest=False, **kwargs): # , sesh: BybitSesh
         self.sesh = sesh 
-        self.__status = "waiting" # waiting , stopped, live
         self.on_backtest = on_backtest
-        self._params = self.update_params(params) 
-        
-        self.log_color = None
 
+        self.__status = "waiting" # waiting , stopped, live
+        self.__params = self.update_new_params(params) 
         self.__logger = None
+        
+        self.id_color = '#B5D6FF'
+
+        [setattr(self, k, v) for k, v in kwargs.items()]
         # TODO: ordenar
 
     def __str__(self):
         # if self._params:
-        params = ','.join(f'{i[0]}={i[1]}' for i in zip(self._params.keys(),
-                                                        map(_as_str, self._params.values())))
+        params = ','.join(f'{i[0]}={i[1]}' for i in zip(self.__params.keys(),
+                                                        map(_as_str, self.__params.values())))
         if params:
             params = '(' + params + ')'
         return f'{self.__class__.__name__}{params}'
@@ -296,47 +298,96 @@ class Strategy:
     def __repr__(self):
         return '<Strategy ' + str(self) + '>'
         
-    def create_and_configure_logger(self):
+    def __getstate__(self):
+        """Prepara el objeto para ser pickled, excluyendo el logger"""
+        state = self.__dict__.copy()
+        # Excluir el logger ya que no es picklable
+        if '_Strategy__logger' in state:
+            del state['_Strategy__logger']
+        return state
+
+    def __setstate__(self, state):
+        """Restaura el objeto después de ser unpickled"""
+        self.__dict__.update(state)
+        # Recrear el logger si es necesario
+        self.__logger = None # Dejarlo vacio para recrearlo luego si se usa
+
+    def _create_and_configure_logger(self):
     
         # Crear el direcorio de los logs
-        current_dir = Path.cwd() 
-        logs_path = current_dir / 'logs'
-        if not logs_path.exists():
-            logs_path.mkdir(exist_ok=True)
+        logs_path_dir = Path.cwd() / 'logs'
+        if not logs_path_dir.exists():
+            logs_path_dir.mkdir(exist_ok=True)
 
         # definir el tipo de logger segun sea en modo backtest o live
         if self.on_backtest:
-            logger = BacktestLogger(name=self.__class__.__name__, strategy=self)
+            logger = BacktestLogger(name=self.__class__.__name__, sesh=self.sesh)
         else:
-            # 1. Obtener y configurar el logger (para procesar todos los mensajes)
             logger = logging.getLogger(self.__class__.__name__)
 
-        logger.setLevel(logging.DEBUG)
+        #region LEVELS: Configuracion y Actualizacion de nuevos niveles
+        _PERF_LEVEL = 5
+        _SIGNAL_LEVEL = 15
+        _TRADING_LEVEL = 25
 
-        # 2. Crear los manejadores (destinos)
-        file_handler = logging.FileHandler(logs_path / 'live.log')
+        logging.addLevelName(_PERF_LEVEL, f'{'PERF':<9}')
+        logging.addLevelName(logging.DEBUG, f'{'DEBUG':<9}')
+        logging.addLevelName(_SIGNAL_LEVEL, f'{'SIGNAL':<9}')
+        logging.addLevelName(logging.INFO, f'{'INFO':<9}')
+        logging.addLevelName(_TRADING_LEVEL, f'{'TRADING':<9}')
+        logging.addLevelName(logging.WARNING, f'{'WARNING':<9}')
+        logging.addLevelName(logging.ERROR, f'{'ERROR':<9}')
+        logging.addLevelName(logging.CRITICAL, f'{'CRITICAL':<9}')
+
+        def perf(self, msg, *args, **kwargs):
+            if self.isEnabledFor(_PERF_LEVEL):
+                self._log(_PERF_LEVEL, msg, args, **kwargs)
+
+        def signal(self, msg, *args, **kwargs):
+            if self.isEnabledFor(_SIGNAL_LEVEL):
+                self._log(_SIGNAL_LEVEL, msg, args, **kwargs)
+
+        def trading(self, msg, *args, **kwargs):
+            if self.isEnabledFor(_TRADING_LEVEL):
+                self._log(_TRADING_LEVEL, msg, args, **kwargs)
+
+        logging.Logger.perf = perf
+        logging.Logger.signal = signal
+        logging.Logger.trading = trading
+        
+        logger.setLevel(_PERF_LEVEL)
+        #endregion
+
+        # Crear los manejadores (destinos)
+        stgy_name = self.__class__.__name__
+        log_save_path = logs_path_dir / (f'log_backtest_{stgy_name}.log' if self.on_backtest else f'on_live_log_{stgy_name}.log')
+        file_handler = logging.FileHandler(log_save_path)
         stream_handler = logging.StreamHandler() 
-
+  
+        LOG_NAME_COLOR = HEX(self.id_color) # "#BFD8FF"
+        shade, saturation = 0.35, 0
         update_config_stream = {
-            'debug': {'name': {'text_color': "#688193FF", 'style':1}}, 
-            'info': {'name': {'text_color': "#688193FF", 'style':1}},
-            'warning': {'name': {'text_color': "#BFD8FFFF", 'style':1}},
-            'error': {'name': {'text_color': "#BFD8FFFF", 'style':1}},
+            'perf': {'name': {'text_color': LOG_NAME_COLOR.shade(shade).saturate(saturation), 'style':1}}, 
+            'debug': {'name': {'text_color': LOG_NAME_COLOR.shade(shade).saturate(saturation), 'style':1}}, 
+            'signal': {'name': {'text_color': LOG_NAME_COLOR, 'style':1}},
+            'info': {'name': {'text_color': LOG_NAME_COLOR.shade(shade).saturate(saturation), 'style':1}},
+            'trading': {'name': {'text_color': LOG_NAME_COLOR, 'style':1}},
+            'warning': {'name': {'text_color': LOG_NAME_COLOR, 'style':1}},
+            'error': {'name': {'text_color': LOG_NAME_COLOR, 'style':1}},
         }
 
         # 3. Crear el formateador
         file_msg_formatter = CustomFormatter(
-            format_theme=LevelColorFormatTheme(
+            format_theme=LevelFormatTheme(
                 no_color=True
             ))
         custom_stream_formatter = CustomFormatter(
-            format_theme=LevelColorFormatTheme(
+            format_theme=LevelFormatTheme(
                 config=update_config_stream, no_color=False
             ))
 
         # 4. Conectar el formateador a cada manejador
         file_handler.setFormatter(file_msg_formatter)
-        # stream_handler.setFormatter(formatter)
         stream_handler.setFormatter(custom_stream_formatter)
 
         # 5. Establecer niveles de filtro para cada manejador
@@ -349,7 +400,7 @@ class Strategy:
 
         return logger
 
-    def update_params(self, params):
+    def update_new_params(self, params):
         if params is None: return {}
 
         for k, v in params.items():
@@ -472,7 +523,7 @@ class Strategy:
     @property
     def logger(self):
         if not self.__logger:
-            self.__logger = self.create_and_configure_logger()
+            self.__logger = self._create_and_configure_logger()
         return self.__logger
 
     @logger.setter
@@ -530,9 +581,9 @@ class CryptoSesh(ABC):
     def equity(self):
         pass
 
-    @property # OBLIGATORIO TODO: NotImplementedError
+    @property 
     def now(self) -> pd.Timestamp:
-        pass 
+        raise NotImplementedError
     
 
     """ DATA """

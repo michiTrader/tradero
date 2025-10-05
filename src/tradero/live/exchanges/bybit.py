@@ -45,9 +45,9 @@ class BybitSesh(CryptoSesh):
         return self._session.get_balance(
             cacountType=self._account_type, coin=self._base_coin)["result"]["list"][0]["totalEquity"]
 
-    @property # OBLIGATORIO TODO: NotImplementedError
+    @property 
     def now(self) -> pd.Timestamp:
-        pass 
+        return pd.to_datetime(time.time(), unit='ms').strftime('%Y-%m-%d %H:%M:%S')
     
 
     """ DATA """
@@ -219,7 +219,7 @@ class BybitSesh(CryptoSesh):
             None, 
             lambda: self._session.get_server_time()["result"]["timeSecond"]
         )
-
+    
         timestamp = pd.Timestamp(int(seconds_time), unit="s", tz=tz).tz_localize(None)
         return timestamp
 

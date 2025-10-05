@@ -22,6 +22,7 @@ from bokeh.io import show, output_notebook
 import itertools
 import copy
 from pintar import dye, Brush, Stencil
+import traceback
 
 class Order:
     __slots__ = ['id', 'symbol', 'size', 'price', 'order_type', 'side', 
@@ -1356,7 +1357,6 @@ class _CryptoBacktestSesh:
         numpy_datetime = self.data_provider.request(idx=self.current_index, symbol=self.main_symbol, limit=1).index[-1]
         return numpy_datetime.astype("M8[ms]").astype("O") # objeto datetime de python
 
-
     @property
     async def total_equity(self):
         return self.broker.total_equity    
@@ -2440,9 +2440,7 @@ class Backtest:
         self._current_timestamp = None
         self._info = False
 
-
-    # def _overwrite_sleep_method_in_strategy(self):
-    #     """Sobrescribe un método de la estrategia con una nueva implementación"""
+        self.stgy_new_id_color = "#B5D6FF"
 
     def _process_data_parameter(self, data): # TODO
         """Procesa el parámetro data según su tipo y lo convierte al formato esperado"""
@@ -2463,8 +2461,13 @@ class Backtest:
      
         # Instanciar estrategia, concederle permisos de session y setear parametros
         # indicar a la estrategia que está en modo backtest para que el time del log sea correcto
-        self._strategy: Strategy = self._strategy_obj(sesh=self._sim_sesh, params=self._strategy_config, on_backtest=True)
-
+        self._strategy: Strategy = self._strategy_obj(
+            sesh=self._sim_sesh, 
+            params=self._strategy_config, 
+            on_backtest=True,
+            id_color=self.stgy_new_id_color
+        )
+        
         # Calcular tiempo inicial 
         self.start_time = time.time() 
         
@@ -2478,8 +2481,7 @@ class Backtest:
         # Crear barra de progreso con posición específica
         if pbar_desc is None:
             pbar_desc = f" • 〽Backtesting {" "+self._strategy.name+" ":ꞏ^20}"
-        if not hasattr(self, "_bar_color"):
-            self._bar_color =  "#03A7D0"           
+
         progress_bar = tqdm(
             total=effective_bars, 
             desc=pbar_desc, # ꞏ 
@@ -2487,7 +2489,7 @@ class Backtest:
             ncols=100,
             # dynamic_ncols=True,
             disable=not pbar,
-            colour=self._bar_color, #'#B86217', #03A7D0, #AA77DA
+            colour=self.stgy_new_id_color, #'#B86217', #03A7D0, #AA77DA
             position=0,
             bar_format='{desc} {percentage:3.0f}% ﴾{bar}﴿ [{elapsed}<{remaining}, {rate_fmt}]{postfix}', # ⌠⌡ |││ ﴾﴿
             miniters=100,
@@ -2561,17 +2563,20 @@ class Backtest:
         start_run_time = time.time()
 
         # Sobrescribir los metodos log y sleep de Strategy 
-        def _log_wrapper_function_that_does_nothing(*args, **kwargs): pass
-        class _logger_wrapper_that_does_nothing: 
-            def debug(msg, *args, **kwargs): pass
-            def info(msg, *args, **kwargs): pass
-            def warning(msg, *args, **kwargs): pass
-            def error(msg, *args, **kwargs): pass
-            def critical(msg, *args, **kwargs): pass
-        async def _sleep_function_that_does_nothing(self, seconds): pass
+        class _logger_wrapper_null:
+            def perf(self, msg, *args, **kwargs): pass
+            def debug(self, msg, *args, **kwargs): pass
+            def signal(self, msg, *args, **kwargs): pass
+            def info(self, msg, *args, **kwargs): pass
+            def trading(self, msg, *args, **kwargs): pass
+            def warning(self, msg, *args, **kwargs): pass
+            def error(self, msg, *args, **kwargs): pass
+            def critical(self, msg, *args, **kwargs): pass
+            def setLevel(self, level): pass
+        async def _sleep_function_null(self, seconds): pass
         # Sobrescribir
-        self._strategy_obj.sleep = _sleep_function_that_does_nothing
-        self._strategy_obj.logger = _logger_wrapper_that_does_nothing if not log else self._strategy_obj.logger # Desactivar los logs
+        self._strategy_obj.sleep = _sleep_function_null
+        self._strategy_obj.logger = _logger_wrapper_null() if not log else self._strategy_obj.logger # Desactivar los logs
 
         stats = asyncio.run(self._run(pbar=pbar, pbar_desc=pbar_desc, mae_metric_type=mae_metric_type))
 
@@ -2834,13 +2839,15 @@ class Backtest:
         
         # Preparar resultado final
         final_stats_result = best_stats_result['stats'].copy()
-        
+        final_stats_result = final_stats_result.highlight_parameter(
+            [objective, '_strategy'], fore='#EDB7D0', bg='#31353E')
+
         self._total_optimizing_time = time.time() - start_time
         print(f"\n • 〽Optimizing {" " + self._strategy_obj.__name__ + " ":ꞏ^20}: "
             "100% ﴾" + f"{dye("█"*31, "#C5F06EFF")}" + '﴿' 
             f" [{self._total_optimizing_time:.2f}s]" , end="\n\n") #█
+            
         return final_stats_result
-
 
     @property
     def sesh(self):
@@ -2851,13 +2858,13 @@ def run_backtests(backtests: list[Backtest], pbar=True, pbar_desc=None, log=Fals
     """Permite ejecutar uno o mas backtestings en Paralelo"""
 
     # Asignar color de barra a cada backtest
-    colors = [
-        "#57C8D2FF","#7477CEFF","#AA77DAFF","#6593D8FF","#B7C577FF",
-        "#DFB889FF","#4AB4CEFF","#C57777FF","#6F3CC7FF"]
+    hex_colors = [
+        "#CCCCCCFF","#A0C4C8FF","#F5FFCBFF","#AA77DAFF","#6593D8FF","#7477CEFF",
+        "#FFE5C4FF","#4AB4CEFF","#C57777FF","#6F3CC7FF"] # "#BFD8FF"
     for i, bt in enumerate(backtests):
-        color = colors[i % len(colors)]
-        bt._bar_color = color[0:7] # limpiar el codigo hex de caracteres adicionales
-
+        hex_color = hex_colors[i % len(hex_colors)][0:7]
+        bt.stgy_new_id_color = hex_color
+    
     # Ejecutar backtests en paralelos
     with ProcessPoolExecutor() as executor:
         futures = [executor.submit(Backtest.run, bt, pbar, pbar_desc, log) for bt in backtests] 

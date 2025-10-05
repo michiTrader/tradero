@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 import json
 from pintar import dye, Brush, Stencil
+from pintar.colors import RGB, HSL, HEX
 
 def try_(lazy_func, default=None, exception=Exception):
     try:
@@ -141,18 +142,18 @@ class StrategyLogManager:
     def _print_formatted_log(self, colors: ColorScheme, timestamp: str, name_tag: str, *args, **print_kwargs):
         """Imprime el log con formato completo"""
         # Círculo de estado
-        print(dye("° ", tex=colors.circle, bg=colors.circle_bg), end='')
+        print(dye("° ", fore=colors.circle, bg=colors.circle_bg), end='')
         
         # Timestamp
-        dye.start(tex=colors.time, bg=None, sty=None)
+        dye.start(fore=colors.time, bg=None, sty=None)
         print(timestamp, end=' ')
         
         # Etiqueta del nombre
-        dye.start(tex="#000000", bg=self.strategy_color, sty="bold")
+        dye.start(fore="#000000", bg=self.strategy_color, sty="bold")
         print(name_tag, end=f"{dye.end(return_repr=True)} ")
         
         # Mensaje
-        dye.start(tex=colors.message, bg=None, sty="bold")
+        dye.start(fore=colors.message, bg=None, sty="bold")
         print(*args, **print_kwargs)
         
         dye.end()
@@ -194,31 +195,37 @@ class ColorWayGenerator:
 
 # TODO: ordenar
 # Abrimos el archivo JSON que contiene el tema de colores para los logs
-with open(Path.cwd() / 'config/custom_log_color_theme.json') as f:
+with open(Path.cwd() / 'config/log_theme_strategy_2.json') as f:
     CUSTOM_COLOR_THEME = json.load(f)
 
-def deep_dict_update(d, u):
+def dict_deep_update(d, u):
     for k, v in u.items():
         if isinstance(v, dict) and isinstance(d.get(k), dict):
-            deep_dict_update(d[k], v)
+            dict_deep_update(d[k], v)
         else:
             d[k] = v
     return d
 
-class LevelColorFormatTheme:
+class LevelFormatTheme:
     def __init__(self, config: dict = None, color_theme: dict = None, no_color=False):
         self._color_theme = CUSTOM_COLOR_THEME if not color_theme else color_theme 
         self._config = config
         self._level_format = None # a la espera 
         
-        # Configurar el color theme 
+        # Configuracion aducional del color theme 
         if config is not None:
-            self._color_theme = deep_dict_update(self._color_theme, config)
+            self._color_theme = dict_deep_update(self._color_theme, config)
         
         # Relacionar los niveles de log con los temas de color definidos en el JSON
+        perf_level = 5
+        signal_level = 15
+        trading_level = 25
         levels_color_themes = {
+            perf_level : self._color_theme['perf'],
             logging.DEBUG : self._color_theme['debug'],
+            signal_level: self._color_theme['signal'],  
             logging.INFO : self._color_theme['info'],
+            trading_level: self._color_theme['trading'], 
             logging.WARNING : self._color_theme['warning'],
             logging.ERROR : self._color_theme['error'],
             logging.CRITICAL : self._color_theme['critical'],
@@ -228,7 +235,7 @@ class LevelColorFormatTheme:
         # Cada tupla tiene:
         # (clave interna, clave usada en el tema, string de formato o carácter)
         CHARACTERS_CONFIG = (
-            ('name', '%(name)s:'),       # nombre del logger (:%(name)s:)
+            ('name', '%(name)s'),       # nombre del logger (:%(name)s:)
             ('asctime', '%(asctime)s'), # fecha y hora del log
             ('levelname', '%(levelname)s'), # nivel del log (DEBUG, INFO, etc.)
             ('message', '%(message)s'), # mensaje del log
@@ -251,17 +258,15 @@ class LevelColorFormatTheme:
                     f_results[key] = cha  
                 else:
                     f_results[key] = Stencil(string=cha).spray(
-                        tex_color=c_theme[key]['text_color'],  # color del texto
-                        bg_color=c_theme[key]['bg_color'],     # color de fondo
+                        fore=c_theme[key]['text_color'],  # color del texto
+                        bg=c_theme[key]['bg_color'],     # color de fondo
                         style=c_theme[key]['style'],     # estilo
                     )
 
-            # Construimos el formato final del log, por ejemplo:
-            # █logger_name 2025-10-02 |INFO| Mensaje de log
-            self._level_format[lvl] = (
-                f"{f_results["block"]}{f_results["name"]} {f_results["asctime"]} " 
-                f"{f_results["bar"]}{f_results["levelname"]}{f_results["bar"]} {f_results["message"]}"
-            )
+            # formato final del log
+            # ejemplo: █logger_name 2025-10-02 |INFO| Mensaje de log
+            name, asctime, levelname, message, circle, block, bar = tuple([f_results[k] for k, v in CHARACTERS_CONFIG])
+            self._level_format[lvl] = f"{asctime} {bar} {levelname}{bar} {name} - {message}"
 
     def get_level_format(self) -> dict:
         return self._level_format
@@ -272,9 +277,9 @@ class CustomFormatter(logging.Formatter):
     basados en el nivel del registro.
     """
 
-    def __init__(self, fmt=None, datefmt=None, style='%', validate=True, defaults=None, format_theme: LevelColorFormatTheme = None):
+    def __init__(self, fmt=None, datefmt=None, style='%', validate=True, defaults=None, format_theme: LevelFormatTheme = None):
         super().__init__(fmt=fmt, datefmt=datefmt, style=style, validate=validate, defaults=defaults)
-        self._format_theme: LevelColorFormatTheme = format_theme
+        self._format_theme: LevelFormatTheme = format_theme
 
         if format_theme:
             self.level_format = self._format_theme.get_level_format()
@@ -301,17 +306,17 @@ class CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 class BacktestLogger(logging.Logger):
-    def __init__(self, name, strategy):
+    """ """
+    def __init__(self, name, sesh):
         super().__init__(name)
-        self.strategy: 'Strategy' = strategy  # la estrategia que tiene el timestamp de la vela actual
+        self._bt_sesh = sesh  # la estrategia que tiene el timestamp de la vela actual
 
     def makeRecord(self, *args, **kwargs):
         record = super().makeRecord(*args, **kwargs)
-        if hasattr(self.strategy.sesh, "now"):
+        if hasattr(self._bt_sesh, "now"):
             # Sobreescribir con el tiempo de la vela actual
-            record.created = self.strategy.sesh.now.timestamp()
+            record.created = self._bt_sesh.now.timestamp()
         return record
-
 
 
 def _as_str(value) -> str:

@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
-from typing import cast
+from typing import cast, Iterable
+import re
+from pintar import dye
 
 class Stats(pd.Series):
     """Clase que extiende pd.Series para contener estadísticas de backtest"""
@@ -15,6 +17,21 @@ class Stats(pd.Series):
     def __repr__(self):
         # Personalizar la representación para mostrar mejor las estadísticas
         return super().__repr__()
+
+    def highlight_parameter(self, params: Iterable[str], fore='#FF8BB8FF', bg=None, style=None):
+        text = self.__str__()
+        for param in params:
+            param_code = param.replace('[%]', r'\[%\]').replace('[$]', r'\[$\]').replace('.', r'\.')
+
+            matches = re.findall(re.compile(fr'\n({param_code}.*)\n'), text)
+            if not matches:
+                continue  # Retornar el texto original si no hay coincidencias
+                
+            text_mached = matches[0]
+            new_text_formatted = str(dye(text_mached, fore, bg, style))
+
+            text = text.replace(text_mached, new_text_formatted)
+        return text
 
 
 def optimize_take_profit(mfe, returns, range_step=0.01):

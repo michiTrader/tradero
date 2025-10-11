@@ -18,7 +18,7 @@ class Stats(pd.Series):
         # Personalizar la representación para mostrar mejor las estadísticas
         return super().__repr__()
 
-    def highlight_parameter(self, params: Iterable[str], fore='#FF8BB8FF', bg=None, style=None):
+    def highlight_parameter(self, params: Iterable[str], fore='#D6ADFF', bg=None, style=1):
         text = self.__str__()
         for param in params:
             param_code = param.replace('[%]', r'\[%\]').replace('[$]', r'\[$\]').replace('.', r'\.')
@@ -31,6 +31,7 @@ class Stats(pd.Series):
             new_text_formatted = str(dye(text_mached, fore, bg, style))
 
             text = text.replace(text_mached, new_text_formatted)
+        # text = dye(text, '#C9C9C9FF')
         return text
 
 

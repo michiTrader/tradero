@@ -1,0 +1,298 @@
+{
+  "perf": {
+    "name": {
+      "text_color": "#B5B5B5", 
+      "bg_color": null,
+      "style": 1
+    },
+    "asctime": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "levelname": {
+      "text_color": "#FBA8FFFF",
+      "bg_color": null,
+      "style": 1
+    },
+    "message": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "circle": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "block": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "bar": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    }
+  },
+  "debug": {
+    "name": {
+      "text_color": "#BDBDBD", 
+      "bg_color": null,
+      "style": 1
+    },
+    "asctime": {
+      "text_color": "#BDBDBD",
+      "bg_color": null,
+      "style": null
+    },
+    "levelname": {
+      "text_color": "#FBA8FFFF",
+      "bg_color": null,
+      "style": 1
+    },
+    "message": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "circle": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "block": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "bar": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    }
+  },
+  "signal": {
+    "name": {
+      "text_color": "#BDBDBD", 
+      "bg_color": null,
+      "style": 1
+    },
+    "asctime": {
+      "text_color": "#BDBDBD",
+      "bg_color": null,
+      "style": null
+    },
+    "levelname": {
+      "text_color": "#FBA8FFFF",
+      "bg_color": null,
+      "style": 1
+    },
+    "message": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "circle": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "block": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "bar": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    }
+  },
+  "info": {
+    "name": {
+      "text_color": "#BDBDBD", 
+      "bg_color": null,
+      "style": 1
+    },
+    "asctime": {
+      "text_color": "#7D7D7DFF",
+      "bg_color": null,
+      "style": null
+    },
+    "levelname": {
+      "text_color": "#A4A4A4FF",
+      "bg_color": null,
+      "style": 1
+    },
+    "message": {
+      "text_color": "#8A8A8AFF",
+      "bg_color": null,
+      "style": null
+    },
+    "circle": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "block": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "bar": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    }
+  },
+  "trading": {
+    "name": {
+      "text_color": "#BDBDBD", 
+      "bg_color": null,
+      "style": 1
+    },
+    "asctime": {
+      "text_color": "#BDBDBD",
+      "bg_color": null,
+      "style": null
+    },
+    "levelname": {
+      "text_color": "#FF91E0FF",
+      "bg_color": null,
+      "style": 1
+    },
+    "message": {
+      "text_color": "#E1E1E1FF",
+      "bg_color": null,
+      "style": null
+    },
+    "circle": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "block": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "bar": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    }
+  },
+  "warning": {
+    "name": {
+      "text_color": "#BDBDBD", 
+      "bg_color": null,
+      "style": 1
+    },
+    "asctime": {
+      "text_color": "#BDBDBD",
+      "bg_color": null,
+      "style": null
+    },
+    "levelname": {
+      "text_color": "#FFCB8FFF",
+      "bg_color": null,
+      "style": 1
+    },
+    "message": {
+      "text_color": "#E1E1E1FF",
+      "bg_color": null,
+      "style": null
+    },
+    "circle": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "block": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "bar": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    }
+  },
+  "error": {
+    "name": {
+      "text_color": "#BDBDBD", 
+      "bg_color": null,
+      "style": 1
+    },
+    "asctime": {
+      "text_color": "#BDBDBD",
+      "bg_color": null,
+      "style": null
+    },
+    "levelname": {
+      "text_color": "#FF7EA9FF",
+      "bg_color": null,
+      "style": 1
+    },
+    "message": {
+      "text_color": "#E1E1E1FF",
+      "bg_color": null,
+      "style": null
+    },
+    "circle": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "block": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "bar": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    }
+  },
+  "critical": {
+    "name": {
+      "text_color": "#BDBDBD", 
+      "bg_color": null,
+      "style": 1
+    },
+    "asctime": {
+      "text_color": "#BDBDBD",
+      "bg_color": null,
+      "style": null
+    },
+    "levelname": {
+      "text_color": "#FBA8FFFF",
+      "bg_color": null,
+      "style": 1
+    },
+    "message": {
+      "text_color": "#E1E1E1FF",
+      "bg_color": null,
+      "style": null
+    },
+    "circle": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "block": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    },
+    "bar": {
+      "text_color": "#B5B5B5",
+      "bg_color": null,
+      "style": null
+    }
+  }
+}

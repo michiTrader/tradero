@@ -1,22 +1,15 @@
-
-from bokeh.colors import Color
 import numpy as np
 import pandas as pd
 from typing import Dict, Callable, Union
 from abc import ABC, abstractclassmethod
 import pandas as pd
 import asyncio
-import time
-from datetime import datetime, timezone, timedelta
-from .lib import timeframe2minutes, minutes2timeframe, find_minutes_timeframe, get_str_datetime_now
-from .stats import Stats
-# from .ta import PivotIndicator
-import traceback
-from tradero._util import StrategyLogManager, _as_str, CustomFormatter, LevelFormatTheme, BacktestLogger
+from tradero.lib import timeframe2minutes, minutes2timeframe, find_minutes_timeframe
+from tradero._util import _as_str, BacktestLogger
 import logging
 from pathlib import Path
-from pintar import dye, Brush, Stencil, RGB, HEX
-import json
+from pintar import HEX
+from pintar.logging import Theme, PintarStreamHandler, PintarFileHandler
 
 """
     Una Sesh debe tener las siguientes funciones: 
@@ -115,11 +108,6 @@ class DataOHLC:
     def __get_array(self, key: str) -> _Array:
         """Obtiene un array desde el caché o lo carga si no está."""
         return self.__arrays[key]
-
-    # def __get_array(self, key):
-    #     # Usar getattr con objeto.__getattribute__ para evitar recursión
-    #     arrays = object.__getattribute__(self, '_DataOHLC__arrays')  # o como se llame tu atributo
-    #     return arrays[key]
 
     def __len__(self) -> int:
         """Longitud actual de los datos."""
@@ -279,8 +267,10 @@ class Strategy:
         self.on_backtest = on_backtest
 
         self.__status = "waiting" # waiting , stopped, live
-        self.__params = self.update_new_params(params) 
+        self.__params = self.set_params(params) 
         self.__logger = None
+        
+        self._logs_path = None
         
         self.id_color = '#B5D6FF'
 
@@ -315,7 +305,7 @@ class Strategy:
     def _create_and_configure_logger(self):
     
         # Crear el direcorio de los logs
-        logs_path_dir = Path.cwd() / 'logs'
+        logs_path_dir = (Path.cwd() / 'logs') if not self._logs_path else Path(self._logs_path)
         if not logs_path_dir.exists():
             logs_path_dir.mkdir(exist_ok=True)
 
@@ -330,14 +320,14 @@ class Strategy:
         _SIGNAL_LEVEL = 15
         _TRADING_LEVEL = 25
 
-        logging.addLevelName(_PERF_LEVEL, f'{'PERF':<9}')
-        logging.addLevelName(logging.DEBUG, f'{'DEBUG':<9}')
-        logging.addLevelName(_SIGNAL_LEVEL, f'{'SIGNAL':<9}')
-        logging.addLevelName(logging.INFO, f'{'INFO':<9}')
-        logging.addLevelName(_TRADING_LEVEL, f'{'TRADING':<9}')
-        logging.addLevelName(logging.WARNING, f'{'WARNING':<9}')
-        logging.addLevelName(logging.ERROR, f'{'ERROR':<9}')
-        logging.addLevelName(logging.CRITICAL, f'{'CRITICAL':<9}')
+        logging.addLevelName(_PERF_LEVEL, f'{'PERF'}')
+        logging.addLevelName(logging.DEBUG, f'{'DEBUG'}')
+        logging.addLevelName(_SIGNAL_LEVEL, f'{'SIGNAL'}')
+        logging.addLevelName(logging.INFO, f'{'INFO'}')
+        logging.addLevelName(_TRADING_LEVEL, f'{'TRADING'}')
+        logging.addLevelName(logging.WARNING, f'{'WARNING'}')
+        logging.addLevelName(logging.ERROR, f'{'ERROR'}')
+        logging.addLevelName(logging.CRITICAL, f'{'CRITICAL'}')
 
         def perf(self, msg, *args, **kwargs):
             if self.isEnabledFor(_PERF_LEVEL):
@@ -360,47 +350,93 @@ class Strategy:
 
         # Crear los manejadores (destinos)
         stgy_name = self.__class__.__name__
-        log_save_path = logs_path_dir / (f'log_backtest_{stgy_name}.log' if self.on_backtest else f'on_live_log_{stgy_name}.log')
-        file_handler = logging.FileHandler(log_save_path)
-        stream_handler = logging.StreamHandler() 
+        log_save_path = logs_path_dir / (
+            f'backtest_log_{stgy_name}.log' if self.on_backtest 
+                else f'live_log_{stgy_name}.log'
+        )
   
         LOG_NAME_COLOR = HEX(self.id_color) # "#BFD8FF"
-        shade, saturation = 0.35, 0
-        update_config_stream = {
-            'perf': {'name': {'text_color': LOG_NAME_COLOR.shade(shade).saturate(saturation), 'style':1}}, 
-            'debug': {'name': {'text_color': LOG_NAME_COLOR.shade(shade).saturate(saturation), 'style':1}}, 
-            'signal': {'name': {'text_color': LOG_NAME_COLOR, 'style':1}},
-            'info': {'name': {'text_color': LOG_NAME_COLOR.shade(shade).saturate(saturation), 'style':1}},
-            'trading': {'name': {'text_color': LOG_NAME_COLOR, 'style':1}},
-            'warning': {'name': {'text_color': LOG_NAME_COLOR, 'style':1}},
-            'error': {'name': {'text_color': LOG_NAME_COLOR, 'style':1}},
-        }
+        SHADE, SAT = 0.35, 0
 
-        # 3. Crear el formateador
-        file_msg_formatter = CustomFormatter(
-            format_theme=LevelFormatTheme(
-                no_color=True
-            ))
-        custom_stream_formatter = CustomFormatter(
-            format_theme=LevelFormatTheme(
-                config=update_config_stream, no_color=False
-            ))
+        theme = Theme(
+            color_config=self._get_logger_color_config(LOG_NAME_COLOR, SHADE, SAT),
+            fmt='{asctime}  {levelname}  {name} - {message}',
+            style='{',
+            dye=True
+        )
+        # Crear el formateador
+        stream_handler = PintarStreamHandler(theme=theme) 
+        file_handler = PintarFileHandler(log_save_path, theme=theme)
+        
+        # Establecer niveles de filtro para cada manejador
+        stream_handler.setLevel(_SIGNAL_LEVEL) 
+        file_handler.setLevel(_PERF_LEVEL) 
 
-        # 4. Conectar el formateador a cada manejador
-        file_handler.setFormatter(file_msg_formatter)
-        stream_handler.setFormatter(custom_stream_formatter)
-
-        # 5. Establecer niveles de filtro para cada manejador
-        file_handler.setLevel(logging.INFO)    # Solo guarda INFO y superiores en el archivo
-        stream_handler.setLevel(logging.DEBUG) # Muestra TODO, incluyendo DEBUG, en la consola
-
-        # 6. Añadir los manejadores al logger
-        logger.addHandler(file_handler)
+        # Añadir los manejadores al logger
         logger.addHandler(stream_handler)
+        logger.addHandler(file_handler)
 
         return logger
 
-    def update_new_params(self, params):
+    def _get_logger_color_config(self, log_name_color: HEX, shade, sat):
+        color_config = {
+            'PERF': {
+                'name': {
+                    'fore_color': log_name_color.shade(shade).saturate(sat), 
+                    'style':1}
+            }, 
+            'DEBUG': {
+                'name': {
+                    'fore_color': log_name_color.shade(shade).saturate(sat), 
+                    'style':1
+                }
+            }, 
+            'SIGNAL': {
+                'name': {
+                    'fore_color': log_name_color, 
+                    'style':1
+                }
+            },
+            'INFO': {
+                'name': {
+                    'fore_color': log_name_color.shade(shade).saturate(sat), 
+                    'style':1
+                    }
+                },
+            'TRADING': {
+                'asctime': {
+                    'fore_color': '#D1D1D1', 
+                    'style':1
+                },
+                'name': {
+                    'fore_color': log_name_color, 
+                    'style':1
+                }, 
+                'levelname': {
+                    'fore_color':'#EAEFFF',
+                    'style':1
+                },
+                'message': {
+                    'fore_color': '#D1D1D1', 
+                    'style':1
+                },
+            },
+            'WARNING': {
+                'name': {
+                    'fore_color': log_name_color, 
+                    'style':1
+                }
+            },
+            'ERROR': {
+                'name': {
+                    'fore_color': log_name_color, 
+                    'style':1
+                }
+            },
+        }
+        return color_config
+    
+    def set_params(self, params):
         if params is None: return {}
 
         for k, v in params.items():
@@ -443,14 +479,20 @@ class Strategy:
         return self.sesh
 
     def start(self):
+        self.logger.warning(f"on_live \033[92;1m°\033[0m")
         self.__status = "live" 
 
     def stop(self):
+        self.logger.warning(f"on_stop \033[91;1m°\033[0m")
         self.__status = "stopped" 
 
-    def update(self):
-        # TODO: guardar reporte de la estrategia 
-        pass
+    def wait(self):
+        self.logger.warning(f"waiting \033[93m°\033[0m")
+        self.__status = "waiting"
+
+    # def update(self):
+    #     # TODO: guardar reporte de la estrategia 
+    #     pass
 
     async def sleep(self, seconds: int):
         """ Pausa la ejecucion de la estrategia por un tiempo en segundos """
@@ -509,6 +551,10 @@ class Strategy:
                 )
 
     @property
+    def params(self):
+        return self.__params
+
+    @property
     def name(self):
         return self.__class__.__name__
 
@@ -533,7 +579,7 @@ class Strategy:
 class CryptoSesh(ABC):  
     """Sesión de trading para Bybit con funciones para operar"""
 
-    def _process_kline_data_to_frame(self, klines, tz:str = None) -> DataOHLC:
+    def _process_kline_data_to_data_ohlc(self, klines, symbol, timeframe, tz:str = None) -> DataOHLC:
         """
             Procesa datos de velas (klines) y los convierte a un DataFrame de pandas.
             
@@ -567,7 +613,7 @@ class CryptoSesh(ABC):
 
         content = df.dropna().reset_index().to_dict(orient="list")
 
-        return DataOHLC(content)
+        return DataOHLC(content=content, timeframe=timeframe, symbol=symbol)
     
     @property
     async def total_equity(self):

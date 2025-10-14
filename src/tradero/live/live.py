@@ -12,15 +12,12 @@ from pintar import dye
 from tradero.models import CryptoSesh, Strategy
 from tradero._util import has_internet_connection,  distribution_between_processes
 
-RED_CIRCLE = '\033[91;1m°\033[0m'
-GREEN_CIRCLE = '\033[92;1m°\033[0m'
 
 LOG_COLORS = [
-    "#A3DFE6FF", "#EDC77DFF", "#C997DDFF", "#DE9BA8FF", "#9EA2EFFF", 
-    "#A0B487FF", "#71CFD7FF", "#BCF599FF", "#E3A989FF", "#5EDDAEFF", 
-    "#6B80BFFF", "#AA429CFF", "#794AAFFF", "#D67C2EFF"
+    "#B5D6FF", "#D3FFEEFF", "#FEFFD5FF", "#F2C9B7FF", "#9EA2EFFF", 
+    "#A0B487FF", "#A3DFE6FF", "#BCF599FF", "#E3A989FF", "#5EDDAEFF", 
+    "#6B80BFFF", "#AA429CFF", "#F3D3FFFF", "#D67C2EFF"
 ]
-
 
 class StrategyLifecycleManager:
     """Maneja el ciclo de vida de las estrategias (init, start, stop)."""
@@ -34,7 +31,6 @@ class StrategyLifecycleManager:
             
             try:
                 strategy.stop()
-                strategy.logger.warning(f"{RED_CIRCLE} on_stop. Deteniendo estrategia.")
                 await strategy.on_stop()
                 await asyncio.sleep(0.1)
             except Exception as e:
@@ -43,14 +39,43 @@ class StrategyLifecycleManager:
                 )
     
     @staticmethod
-    async def handle_error(strategy: Strategy, exception: Exception) -> None:
+    async def handle_readtimeout_error(strategy: Strategy, exception: Exception) -> bool:
+        """Maneja errores durante la ejecucion de una estrategia."""
+
+        ATTEMPTS = 30
+
+        # Detener temporalmente la estrategia
+        strategy.wait()
+        strategy.logger.error(f'Sin conexión a internet. reintentando conexion...')
+
+        attempt = 0
+        while attempt < ATTEMPTS:
+            if not has_internet_connection():
+                attempt += 1 
+                await asyncio.sleep(4) 
+            else:
+                strategy.logger.warning('Conexion restablecida')
+                strategy.start()
+                return True       
+        else:             
+            # Si no se pudo restablecer la conexion
+            strategy.logger.critical(
+                "No se pudo restablecer la conexion. Se deben revisar las "
+                "posiciones/ordenes manualmente"
+            )
+
+            traceback.print_exc()
+
+            return False
+
+    @staticmethod
+    async def handle_unknown_error(strategy: Strategy, exception: Exception) -> None:
         """Maneja errores durante la ejecucion de una estrategia."""
         strategy.logger.error(
             f"Excepción en {strategy.__class__.__name__}: {exception}"
         )
         
         try:
-            strategy.logger.warning(f"{RED_CIRCLE} on_stop. Deteniendo estrategia.")
             strategy.stop()
             await strategy.on_stop()
         except Exception as e:
@@ -76,26 +101,25 @@ class StrategyRunner:
             await asyncio.sleep(0.5)
             return True
         except Exception as e:
-            await self.lifecycle_manager.handle_error(strategy, e)
+            await self.lifecycle_manager.handle_unknown_error(strategy, e)
             return False
     
     async def run_strategy_loop(self, strategy: Strategy) -> None:
         """Ejecuta el loop principal de una estrategia."""
-        while True:
-            if strategy.status != "live":
-                break
-            
+
+        while strategy.status == "live":
+
             try:
                 await strategy.on_live()
             except ReadTimeout as e:
-                if has_internet_connection():
-                    await asyncio.sleep(7)
-                strategy.logger.error(
-                    "Sin conexión a internet. Se deben cerrar las "
-                    "operaciones/órdenes manualmente"
-                )
+                is_restored = await \
+                    self.lifecycle_manager.handle_readtimeout_error(strategy, e)
+                if is_restored:
+                    continue
+                break
+
             except Exception as e:
-                await self.lifecycle_manager.handle_error(strategy, e)
+                await self.lifecycle_manager.handle_unknown_error(strategy, e)
                 break
     
     async def run_single_strategy(self, strategy: Strategy) -> None:
@@ -106,7 +130,6 @@ class StrategyRunner:
         
         # Inicio del loop
         strategy.start()
-        strategy.logger.warning(f"{GREEN_CIRCLE} on_live...")
         await asyncio.sleep(0.1)
         
         # Ejecución del loop principal
@@ -130,12 +153,14 @@ def _run_strategies_in_process(strategies: List[Strategy]) -> NoReturn:
         asyncio.run(runner.run_multiple_strategies(strategies))
     except KeyboardInterrupt:
         asyncio.run(lifecycle_manager.handle_keyboard_interrupt(strategies))
+    except Exception as e: # XXX
+        print(f"\nerror en _run_strategies_in_process\n")
 
 
 def _assign_log_colors(strategies: List[Strategy]) -> None:
     """Asigna colores a los logs de cada estrategia."""
     for i, strategy in enumerate(strategies):
-        strategy.log_color = LOG_COLORS[i % len(LOG_COLORS)]
+        strategy.id_color = LOG_COLORS[i % len(LOG_COLORS)]
 
 
 def  distribution_between_processes(

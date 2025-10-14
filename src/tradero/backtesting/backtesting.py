@@ -1,7 +1,5 @@
 from functools import partial
-from multiprocessing.shared_memory import SharedMemory
 from .nb import count_available_resample_bars_nb, count_closed_resample_bars_nb
-# from ..core import 
 import pandas as pd
 import numpy as np
 import asyncio
@@ -20,14 +18,13 @@ from tradero.stats import compute_stats, Stats
 from tradero.plotting import plot as _plot
 from tradero._util import SharedMemoryManager, patch
 
-from bokeh.layouts import gridplot
 from bokeh.io import show, output_notebook
 import itertools
 import copy
-from pintar import dye, Brush, Stencil
-import traceback
+from pintar import dye
 
 from multiprocessing import Pool, shared_memory as _mpshm
+import gc
 
 
 class Order:
@@ -2004,7 +2001,9 @@ class _CryptoBacktestSesh:
     def get_closed_trades(self):
         return self.broker.closed_trades
 
-_pbar = partial(tqdm, leave=True)
+_pbar = partial(tqdm, leave=True, ncols=100, 
+    bar_format='{desc} {percentage:3.0f}% {bar} {n}/{total} [{elapsed}<{remaining}, {rate_fmt}]{postfix}'
+)
 
 class Backtest:
     """Clase principal para ejecutar backtests con estrategias"""
@@ -2052,7 +2051,7 @@ class Backtest:
         self._mae_mfe_metric_type = mae_mfe_metric_type
         self._tz = tz
         self._warmup = warmup
-        self._strategy_config = strategy_config
+        # self._strategy_config = strategy_config
 
         # Inicializar variable para almacenar resultados
         self._results = None
@@ -2133,9 +2132,9 @@ class Backtest:
             colour=self.stgy_new_id_color, #'#B86217', #03A7D0, #AA77DA
             position=0,
             bar_format='{desc} {percentage:3.0f}% {bar} [{elapsed}<{remaining}, {rate_fmt}]{postfix}', # ⌠⌡ |││ ﴾﴿
-            miniters=100,
-            mininterval=0.25,
-            maxinterval=5.0,
+            # miniters=100,
+            # mininterval=0.25,
+            # maxinterval=5.0,
         )
         
         # Iterar por cada barra
@@ -2157,7 +2156,6 @@ class Backtest:
             
         finally:
             # progress_bar.colour = "#8DBA54"
-            progress_bar.disable = True
             progress_bar.leave = True
             progress_bar.refresh()
             progress_bar.close()
@@ -2224,6 +2222,125 @@ class Backtest:
         self._total_run_time = time.time() - start_run_time
 
         return stats
+
+    def optimize(self, maximize=None, minimize=None, constraint=None, **combo):
+        """
+            Optimizar los parametros de la estrategia
+            
+            Args:
+                params: Diccionario con parametros a optimizar
+        """
+        start_time = time.time()
+
+        # Validaciones de entrada
+        if maximize and minimize:
+            raise AssertionError("No se puede especificar tanto maximize como minimize")        
+        if not (maximize or minimize):
+            raise AssertionError("Se debe especificar maximize o minimize")        
+        if not combo:
+            raise ValueError("Se deben proporcionar parámetros para optimizar")
+        
+        param_names = combo.keys()
+        param_combinations = list(itertools.product(*combo.values()))
+        if constraint:
+            param_combinations = [
+                comb for comb in param_combinations 
+                if constraint(types.SimpleNamespace(**dict(zip(param_names, comb))))
+            ]
+
+        # crear copias con todas las conbinaciones de parametros
+        combo_param_dicts = [dict(zip(param_names, combo)) for combo in param_combinations] 
+        print(f" • Optimizando ({len(param_combinations)}) combinaciones de parametros...")
+
+        with Pool() as pool, SharedMemoryManager() as smm:
+            with patch(self, '_packet', None):
+                bt = copy.copy(self) 
+            
+            shm_packet_data = smm.packet2shm(self._packet)
+            
+            args = []
+            for combo in combo_param_dicts:
+                args.append((bt, shm_packet_data, combo))
+            
+            results = _pbar(
+                pool.imap(Backtest._mp_task, args),
+                total=len(combo_param_dicts),
+                desc=f" • 〽Otimizing {" " + self._strategy_obj.__name__ + " ":ꞏ^20}"
+            )
+            
+            results = list(results)
+            
+        stats_list = results
+
+        # Filtrar y manejar excepciones
+        exceptions = [stats for stats in stats_list if isinstance(stats, Exception)]
+        valid_stats =[stats for stats in stats_list if isinstance(stats, Stats)]
+        if exceptions:
+            print(f" • Durante la optimizacion Se encontraron ({len(exceptions)}) excepciones:")
+            [print(f"    {dye(e, '#F1DB82')}") for e in list(set(exceptions))]
+        if not valid_stats:
+            raise ValueError("No se obtuvieron estadísticas válidas. Verifique los backtestings.")
+
+        # Extrae el parametro a optimizar
+        objetive = maximize or minimize
+        is_maximizing = bool(maximize)
+
+        # Convertir a funcion
+        if isinstance(objetive, str):
+            def eval_func(stats):
+                if objetive not in stats:
+                    raise KeyError(f"Métrica '{objetive}' no encontrada en estadísticas")
+                return stats[objetive]
+        else:
+            eval_func = objetive
+
+        # Evaluar todas las combinaciones
+        results = []
+        for stats in stats_list:
+            score = eval_func(stats)
+            results.append({
+                'stats': stats,
+                'score': score
+            })
+
+        # Encontrar el mejor resultado
+        results.sort(key= lambda x: x['score'], reverse=is_maximizing)
+        best_stats_result = results[0]
+        
+        # Preparar resultado final
+        final_stats_result = best_stats_result['stats'].copy()
+        final_stats_result = final_stats_result.set_highlight_params(
+            [objetive, '_strategy'], fore='#F4F6FF', bg='#343A4A')
+
+        self._total_optimizing_time = time.time() - start_time
+        # print(f"\n • 〽Optimizing {" " + self._strategy_obj.__name__ + " ":ꞏ^20}: "
+        #     "100% " + f"{dye("█"*31, "#C5F06E")}" 
+        #     f" [{self._total_optimizing_time:.2f}s]" , end="\n\n") 
+            
+        return final_stats_result
+
+    @staticmethod
+    def _mp_task(args):
+        bt, shm_packet, combo = args 
+        packet, shared_memories = SharedMemoryManager.shm2packet(shm_packet)
+
+        bt._packet = packet
+        try:
+            stats = bt.run(pbar=False, **combo)
+            return stats
+        finally:
+            # CRÍTICO: Liberar referencias a la data
+            del bt._packet
+
+            # Forzar garbage collection para liberar copias internas
+            gc.collect()
+
+            for shmem in shared_memories:
+                shmem.close() 
+
+    @property
+    def sesh(self):
+        return self._sim_sesh
 
     def plot(self, 
         results=None,
@@ -2313,138 +2430,6 @@ class Backtest:
             relative_equity = relative_equity
         )
 
-    def optimize(self, maximize=None, minimize=None, constraint=None, **combo):
-        """
-            Optimizar los parametros de la estrategia
-            
-            Args:
-                params: Diccionario con parametros a optimizar
-        """
-        start_time = time.time()
-
-        # Validaciones de entrada
-        if maximize and minimize:
-            raise AssertionError("No se puede especificar tanto maximize como minimize")        
-        if not (maximize or minimize):
-            raise AssertionError("Se debe especificar maximize o minimize")        
-        if not combo:
-            raise ValueError("Se deben proporcionar parámetros para optimizar")
-        
-        param_names = combo.keys()
-        param_combinations = list(itertools.product(*combo.values()))
-        if constraint:
-            param_combinations = [
-                comb for comb in param_combinations 
-                if constraint(types.SimpleNamespace(**dict(zip(param_names, comb))))
-            ]
-
-        # crear copias con todas las conbinaciones de parametros
-        combo_param_dicts = [dict(zip(param_names, combo)) for combo in param_combinations] 
-        print(f" • Optimizando ({len(param_combinations)}) combinaciones de parametros...")
-
-        with Pool() as pool, SharedMemoryManager() as smm:
-            with patch(self, '_packet', None):
-                bt = copy.copy(self) 
-            
-            shm_packet_data = smm.packet2shm(self._packet)
-            
-            args = []
-            for combo in combo_param_dicts:
-                args.append((bt, shm_packet_data, combo))
-            
-            results = _pbar(
-                pool.imap(Backtest._mp_task, args),
-                total=len(combo_param_dicts),
-                desc=f" • 〽Otimizing {" " + self._strategy_obj.__name__ + " ":ꞏ^20}"
-            )
-            results = list(results)
-            
-        stats_list = results
-
-        # # Crear las copias de Backtest configuradas con la estretegia copia configurada
-        # backtests_copies = []
-        # # XXX: cambiar por un sharedmemorymanager para no hacer cientos de copias de la data
-        # for i, combo_dict in enumerate(combo_param_dicts):
-        #     # crear copia de este Backtest principal
-        #     bt_copy = copy.deepcopy(self)
-
-        #     bt_copy._strategy_config = combo_dict
-
-        #     # Añadir el bt
-        #     backtests_copies.append(bt_copy)
-
-        # # Ejecutar todos los backtestings en PARALELO
-        # pbar_desc = f" • 〽Otimizing {" " + self._strategy_obj.__name__ + " ":ꞏ^20}"
-        # stats_list = run_backtests(
-        #     backtests_copies, pbar=False, pbar_desc=pbar_desc, return_exceptions=True
-        # )
-
-
-        # Filtrar y manejar excepciones
-        exceptions = [stats for stats in stats_list if isinstance(stats, Exception)]
-        valid_stats =[stats for stats in stats_list if isinstance(stats, Stats)]
-        if exceptions:
-            print(f" • Durante la optimizacion Se encontraron ({len(exceptions)}) excepciones:")
-            [print(f"    {dye(e, '#F1DB82')}") for e in list(set(exceptions))]
-        if not valid_stats:
-            raise ValueError("No se obtuvieron estadísticas válidas. Verifique los backtestings.")
-
-        # Extrae el parametro a optimizar
-        objetive = maximize or minimize
-        is_maximizing = bool(maximize)
-
-        # Convertir a funcion
-        if isinstance(objetive, str):
-            def eval_func(stats):
-                if objetive not in stats:
-                    raise KeyError(f"Métrica '{objetive}' no encontrada en estadísticas")
-                return stats[objetive]
-        else:
-            eval_func = objetive
-
-        # Evaluar todas las combinaciones
-        results = []
-        for stats in stats_list:
-            score = eval_func(stats)
-            results.append({
-                'stats': stats,
-                'score': score
-            })
-
-        # Encontrar el mejor resultado
-        results.sort(key= lambda x: x['score'], reverse=is_maximizing)
-        best_stats_result = results[0]
-        
-        # Preparar resultado final
-        final_stats_result = best_stats_result['stats'].copy()
-        final_stats_result = final_stats_result.highlight_parameter(
-            [objetive, '_strategy'], fore='#F4F6FF', bg='#343A4A')
-
-        self._total_optimizing_time = time.time() - start_time
-        # print(f"\n • 〽Optimizing {" " + self._strategy_obj.__name__ + " ":ꞏ^20}: "
-        #     "100% " + f"{dye("█"*31, "#C5F06E")}" 
-        #     f" [{self._total_optimizing_time:.2f}s]" , end="\n\n") 
-            
-        return final_stats_result
-
-    @staticmethod
-    def _mp_task(args):
-        bt, shm_packet, combo = args 
-        packet, shared_memories = SharedMemoryManager.shm2packet(shm_packet)
-
-        bt._packet = packet
-        try:
-            stats = bt.run(pbar=False, **combo)
-            return stats
-        finally:
-            for shmem in shared_memories:
-                shmem.close() 
-
-
-
-    @property
-    def sesh(self):
-        return self._sim_sesh
 
 
 
@@ -2453,11 +2438,13 @@ def run_backtests(backtests: list[Backtest], pbar=True, pbar_desc=None, log=Fals
     """Permite ejecutar uno o mas backtestings en Paralelo"""
 
     # Asignar color de barra a cada backtest
-    hex_colors = [
-        "#CCCCCCFF","#A0C4C8FF","#F5FFCBFF","#AA77DAFF","#6593D8FF","#7477CEFF",
-        "#FFE5C4FF","#4AB4CEFF","#C57777FF","#6F3CC7FF"] # "#BFD8FF"
+    LOG_COLORS = [
+        "#B5D6FF", "#D3FFEEFF", "#FEFFD5FF", "#F2C9B7FF", "#9EA2EFFF", 
+        "#A0B487FF", "#A3DFE6FF", "#BCF599FF", "#E3A989FF", "#5EDDAEFF", 
+        "#6B80BFFF", "#AA429CFF", "#F3D3FFFF", "#D67C2EFF"
+    ]
     for i, bt in enumerate(backtests):
-        hex_color = hex_colors[i % len(hex_colors)][0:7]
+        hex_color = LOG_COLORS[i % len(LOG_COLORS)][0:7]
         bt.stgy_new_id_color = hex_color
     
     # Ejecutar backtests en paralelos
@@ -2476,7 +2463,6 @@ def run_backtests(backtests: list[Backtest], pbar=True, pbar_desc=None, log=Fals
                     results.append(None)
 
     
-
     # Limpiar terminal después de todos los procesos
     import sys
     sys.stdout.flush()

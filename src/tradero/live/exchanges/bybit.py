@@ -146,11 +146,8 @@ class BybitSesh(CryptoSesh):
             current_time = segment_end
 
         # Obtención y procesamiento de resultados
-        try:
-            responses = await asyncio.gather(*tasks) #asyncio.run() 
-            return [kline for response in responses for kline in response]
-        except Exception as e:
-            raise Exception(f"Error al obtener klines: {str(e)}")
+        responses = await asyncio.gather(*tasks) #asyncio.run() 
+        return [kline for response in responses for kline in response]
 
     async def get_data(self, 
         symbol,
@@ -181,12 +178,12 @@ class BybitSesh(CryptoSesh):
         tz = self._tz if self._tz else (tz if tz else "UTC")
 
         kline = (await self.get_kline(symbol, timeframe, start, end, limit, category))
-        data = self._process_kline_data_to_frame(kline, tz)
+        data_ohlc = self._process_kline_data_to_data_ohlc(kline, symbol, timeframe, tz)
 
-        if data.empty:
+        if data_ohlc.empty:
             raise ValueError("No se encontraron datos para el símbolo y el timeframe especificados.")
             
-        return data
+        return data_ohlc
 
     async def get_last_price(self, symbol) -> float:
         """
@@ -839,7 +836,5 @@ class BybitSesh(CryptoSesh):
             )
         )
         return resp["result"]
-
-
 
 

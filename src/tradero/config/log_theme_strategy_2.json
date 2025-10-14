@@ -20,16 +20,6 @@
       "bg_color": null,
       "style": null
     },
-    "circle": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
-    "block": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
     "bar": {
       "text_color": "#B5B5B5",
       "bg_color": null,
@@ -53,16 +43,6 @@
       "style": 1
     },
     "message": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
-    "circle": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
-    "block": {
       "text_color": "#B5B5B5",
       "bg_color": null,
       "style": null
@@ -94,16 +74,6 @@
       "bg_color": null,
       "style": null
     },
-    "circle": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
-    "block": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
     "bar": {
       "text_color": "#B5B5B5",
       "bg_color": null,
@@ -131,16 +101,6 @@
       "bg_color": null,
       "style": null
     },
-    "circle": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
-    "block": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
     "bar": {
       "text_color": "#B5B5B5",
       "bg_color": null,
@@ -159,22 +119,12 @@
       "style": null
     },
     "levelname": {
-      "text_color": "#FF91E0FF",
+      "text_color": "#FAFCFFFF",
       "bg_color": null,
       "style": 1
     },
     "message": {
       "text_color": "#E1E1E1FF",
-      "bg_color": null,
-      "style": null
-    },
-    "circle": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
-    "block": {
-      "text_color": "#B5B5B5",
       "bg_color": null,
       "style": null
     },
@@ -205,16 +155,6 @@
       "bg_color": null,
       "style": null
     },
-    "circle": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
-    "block": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
     "bar": {
       "text_color": "#B5B5B5",
       "bg_color": null,
@@ -242,16 +182,6 @@
       "bg_color": null,
       "style": null
     },
-    "circle": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
-    "block": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
     "bar": {
       "text_color": "#B5B5B5",
       "bg_color": null,
@@ -265,27 +195,17 @@
       "style": 1
     },
     "asctime": {
-      "text_color": "#BDBDBD",
+      "text_color": "#FF4E4E",
       "bg_color": null,
       "style": null
     },
     "levelname": {
-      "text_color": "#FBA8FFFF",
-      "bg_color": null,
+      "text_color": "#FF1717",
+      "bg_color": "#121212",
       "style": 1
     },
     "message": {
       "text_color": "#E1E1E1FF",
-      "bg_color": null,
-      "style": null
-    },
-    "circle": {
-      "text_color": "#B5B5B5",
-      "bg_color": null,
-      "style": null
-    },
-    "block": {
-      "text_color": "#B5B5B5",
       "bg_color": null,
       "style": null
     },

@@ -7,33 +7,38 @@ from pintar import dye
 class Stats(pd.Series):
     """Clase que extiende pd.Series para contener estadísticas de backtest"""
     
-    def __init__(self, data=None, index=None, dtype=None, name=None, copy=False, fastpath=False):
-        super().__init__(data, index, dtype, name, copy, fastpath)
-    
     @property
     def _constructor(self):
         return Stats
     
+    def set_highlight_params(self, params: Iterable[str], fore='#D6ADFF', bg=None, style=1):
+        """Configura qué parámetros resaltar al imprimir"""
+        self._highlight_params = list(params)
+        self._highlight_style = {'fore': fore, 'bg': bg, 'style': style}
+        return self
+    
     def __repr__(self):
-        # Personalizar la representación para mostrar mejor las estadísticas
-        return super().__repr__()
-
-    def highlight_parameter(self, params: Iterable[str], fore='#D6ADFF', bg=None, style=1):
-        text = self.__str__()
+        text = pd.Series.__repr__(self)
+        
+        # Simplemente usa getattr con valores por defecto
+        params = getattr(self, '_highlight_params', [])
+        style = getattr(self, '_highlight_style', {'fore': '#D6ADFF', 'bg': None, 'style': 1})
+        
+        if not params:
+            return text
+        
         for param in params:
             param_code = param.replace('[%]', r'\[%\]').replace('[$]', r'\[$\]').replace('.', r'\.')
-
             matches = re.findall(re.compile(fr'\n({param_code}.*)\n'), text)
+            
             if not matches:
-                continue  # Retornar el texto original si no hay coincidencias
+                continue
                 
-            text_mached = matches[0]
-            new_text_formatted = str(dye(text_mached, fore, bg, style))
-
-            text = text.replace(text_mached, new_text_formatted)
-        # text = dye(text, '#C9C9C9FF')
+            text_matched = matches[0]
+            new_text_formatted = str(dye(text_matched, style['fore'], style['bg'], style['style']))
+            text = text.replace(text_matched, new_text_formatted)
+        
         return text
-
 
 def optimize_take_profit(mfe, returns, range_step=0.01):
     """

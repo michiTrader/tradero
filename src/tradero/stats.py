@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from typing import cast, Iterable
 import re
-from pintar import dye
+from pintar import dye, Brush
 
 class Stats(pd.Series):
     """Clase que extiende pd.Series para contener estadísticas de backtest"""
@@ -39,6 +39,8 @@ class Stats(pd.Series):
             text = text.replace(text_matched, new_text_formatted)
         
         return text
+
+
 
 def optimize_take_profit(mfe, returns, range_step=0.01):
     """
@@ -196,6 +198,44 @@ def optimize_stop_loss(mae, returns, range_step=0.01):
         result = {"sl": original_x, "returns": original_balance, "returns_series": returns}
     
     return result
+
+
+def trailing_drawdown(balance, max_drawdown):
+    """
+        Calcula el límite de trailing drawdown en función del balance.
+
+        Parámetros:
+        - balance (pd.Series): Serie con los valores de balance.
+        - max_drawdown (float): Valor máximo permitido de drawdown.
+
+        Retorna:
+        - pd.Series: Límite de trailing drawdown ajustado en función del balance.
+    """
+
+    # Asegurarse de que balance_serie sea una Serie de pandas
+    bal = balance.copy()
+    bal = bal if isinstance(balance, pd.Series) else pd.Series(balance)
+    bal = bal + 1
+
+    # Inicializar variables
+    balance_first_idx = bal.index[0]
+    trailing_dd = []
+    temp_max = 0
+    # Calcular trailing drawdown
+    for i in range(len(bal)):
+        val = bal[i]
+        if val > temp_max:
+            trailing_dd.append(val - max_drawdown)
+            temp_max = val
+        else:
+            trailing_dd.append(None)
+
+    # Convertir la lista a una Serie y aplicar el llenado hacia adelante
+    trailing_dd = pd.Series(trailing_dd)
+    trailing_dd = trailing_dd.ffill()
+
+    return trailing_dd - 1
+
 
 # ============================================================================
 # FUNCIONES AUXILIARES
@@ -627,7 +667,7 @@ def _calculate_trade_stats(s, trades_df, pl, returns, durations):
     
     # return s
 
-def _calculate_advanced_metrics(s, n_trades, win_rate, pl):
+def _calculate_advanced_metrics(s, n_trades, winrate, pl):
     # Convertir pl a numérico
     pl_clean = pd.to_numeric(pd.Series(pl), errors='coerce').dropna()
     
@@ -646,12 +686,12 @@ def _calculate_advanced_metrics(s, n_trades, win_rate, pl):
             avg_win = wins.mean()
             avg_loss = abs(losses.mean())
             win_prob = len(wins) / len(pl_clean)
-            s.loc['Kelly %'] = (win_prob - ((1 - win_prob) / (avg_win / avg_loss))) * 100
+            s.loc['Kelly [%]'] = (win_prob - ((1 - win_prob) / (avg_win / avg_loss))) * 100
         else:
-            s.loc['Kelly %'] = np.nan
+            s.loc['Kelly [%]'] = np.nan
     else:
-        s.loc['Kelly %'] = np.nan
-    
+        s.loc['Kelly [%]'] = np.nan
+
     return s
 
 def _calculate_mae_mfe(s, equity: float, trades_df, metric_type = "ROI"):
@@ -678,6 +718,123 @@ def _calculate_mae_mfe(s, equity: float, trades_df, metric_type = "ROI"):
     trades_df["Mae"] = maes
     trades_df["Mfe"] = mfes
 
+def _calculate_ror(s, trades: pd.DataFrame, max_for_ruin: float = 0.3):
+    """
+        Calcula el **Riesgo de Ruina (Risk of Ruin, ROR)** de una estrategia de trading.
+
+        El riesgo de ruina estima la probabilidad de perder una fracción significativa 
+        del capital inicial (por ejemplo, el 30%) antes de que una racha de operaciones 
+        ganadoras permita recuperar las pérdidas.
+
+        ---
+        Parámetros
+        ----------
+        s : dict o pd.Series
+            Objeto donde se agregará el resultado bajo la clave `'ROR'`.
+        trades : pd.DataFrame
+            DataFrame con el historial de operaciones. 
+            Debe contener la columna `'ReturnPct'`, que representa el retorno 
+            porcentual de cada operación (por ejemplo, 0.02 para +2%, -0.01 para -1%).
+        max_for_ruin : float, opcional
+            Fracción del capital considerada como "ruina" (por defecto 0.3 equivale al 30%).  
+            Es decir, si el capital cae un 30%, se asume que la estrategia está “arruinada”.
+
+        ---
+        Retorno
+        -------
+        s : dict o pd.Series
+            Mismo objeto de entrada con el valor `'ROR'` agregado.
+            El resultado es un número entre 0 y 1:
+            - **0.0**  → Sin riesgo de ruina (estrategia muy sólida)
+            - **1.0**  → Ruina casi segura
+            - **Valores intermedios** indican riesgo moderado de quiebra.
+
+        ---
+        Fórmula
+        --------
+        Basada en la derivación de **Ralph Vince** (Position Sizing Theory):
+
+            ROR = ((1 - (W / L)) / (1 + (W / L))) ^ (B / R)
+
+        Donde:
+            W = winrate * avg_win_pct  
+            L = (1 - winrate) * avg_loss_pct  
+            B = fracción máxima de capital en riesgo antes de ruina (max_for_ruin)  
+            R = pérdida promedio por operación (avg_loss_pct)
+
+        ---
+        Ejemplo
+        --------
+        >>> trades = pd.DataFrame({'ReturnPct': [0.02, -0.01, 0.03, -0.02, 0.01, -0.01]})
+        >>> s = {}
+        >>> _calculate_ror(s, trades)
+        {'ROR': 0.000153}
+
+        En este ejemplo, el riesgo de ruina es de apenas 0.0153%, 
+        lo cual indica que es poco probable perder el 30% del capital 
+        con la estructura actual de ganancias y pérdidas.
+
+        ---
+        Notas
+        -----
+        - Este cálculo **no asume independencia** entre operaciones, 
+        pero **sí asume distribución estable** de retornos (winrate y tamaño medio de ganancia/pérdida constantes).
+        - Si no hay trades ganadores o perdedores, el resultado será 0.
+        - Para estrategias con alta volatilidad o fuerte asimetría, el ROR puede subestimar el riesgo real.
+    """
+
+
+    n_trades = len(trades)
+    if n_trades == 0:
+        s['ROR'] = None
+        return s
+
+    returns = trades['ReturnPct']
+    gross_p = returns[returns > 0]
+    gross_l = returns[returns < 0]
+
+    if len(gross_p) == 0 or len(gross_l) == 0:
+        s['ROR'] = 0.0
+        return s
+
+    winrate = len(gross_p) / n_trades
+    avg_win_pct = gross_p.mean()
+    avg_loss_pct = abs(gross_l.mean())
+
+    W = winrate * avg_win_pct
+    L = (1 - winrate) * avg_loss_pct
+
+    if L == 0 or np.isnan(W) or np.isnan(L):
+        s['ROR'] = 0.0
+        return s
+
+    ratio = W / L
+
+    # Correcciones de estabilidad numérica
+    if ratio <= 0:
+        s['ROR'] = 1.0  # ruina segura: no hay ventaja estadística
+        return s
+    if ratio >= 1:
+        s['ROR'] = 0.0  # sin ruina: ganancia esperada positiva fuerte
+        return s
+
+    R = max(avg_loss_pct, 1e-9)
+    B = max_for_ruin
+
+    base = (1 - ratio) / (1 + ratio)
+    if base <= 0:
+        s['ROR'] = 1.0
+        return s
+
+    try:
+        ROR = base ** (B / R)
+    except:
+        ROR = 1.0
+
+    s['ROR'] = float(np.clip(ROR, 0, 1))
+    return s
+
+
 # ============================================================================
 # FUNCIÓN PRINCIPAL
 # ============================================================================
@@ -686,37 +843,40 @@ def compute_stats(trades, ohlc_data, equity_curve, strategy_instance=None, risk_
     """Calcula estadísticas completas del backtest de manera organizada"""
     index = ohlc_data.index
     
-    # 1. Preparar datos
+    # Preparar datos
     trades_df, commissions = _prepare_trades_dataframe(trades, strategy_instance)
     equity_df, dd, dd_dur, dd_peaks = _prepare_equity_dataframe(equity_curve, index)
     # Extraer datos de trades
-    pl = trades_df['PnL']
+    pnl = trades_df['PnL']
     returns = trades_df['ReturnPct']
     durations = trades_df['Duration']
     
-    # 2. Calcular estadísticas básicas
+    # Calcular estadísticas básicas
     s = _calculate_basic_stats(equity_curve, index, trades_df, commissions, strategy_instance)
     
-    # 3. Calcular estadísticas de benchmark
+    # Calcular estadísticas de benchmark
     s = _calculate_benchmark_stats(s, ohlc_data, strategy_instance)
     
-    # 4. Calcular métricas anualizadas
+    # Calcular métricas anualizadas
     s, day_returns, annual_trading_days, annualized_return, gmean_day_return = _calculate_annualized_metrics(s, equity_df, index)
     
-    # 5. Calcular métricas de riesgo
+    # Calcular métricas de riesgo
     s, max_dd = _calculate_risk_metrics(s, day_returns, annual_trading_days, annualized_return, dd, risk_free_rate)
     
-    # 6. Calcular Alpha y Beta
+    # Calcular Alpha y Beta
     s = _calculate_alpha_beta(s, equity_curve, ohlc_data, risk_free_rate)
     
-    # 7. Calcular estadísticas de drawdown
+    # Calcular estadísticas de drawdown
     s = _calculate_drawdown_stats(s, max_dd, dd_peaks, dd_dur)
     
-    # 8. Calcular estadísticas de trades
-    s, n_trades, win_rate = _calculate_trade_stats(s, trades_df, pl, returns, durations)
+    # Calcular estadísticas de trades
+    s, n_trades, winrate = _calculate_trade_stats(s, trades_df, pnl, returns, durations)
     
-    # 9. Calcular métricas avanzadas
-    s = _calculate_advanced_metrics(s, n_trades, win_rate, pl)
+    # Calcular métricas avanzadas
+    s = _calculate_advanced_metrics(s, n_trades, winrate, pnl)
+    
+    # ROR
+    s = _calculate_ror(s, trades=trades_df, max_for_ruin=0.3)
 
     # 10. calcular mae y mfe
     _calculate_mae_mfe(s, equity_curve, trades_df, metric_type=mae_metric_type)
@@ -727,6 +887,9 @@ def compute_stats(trades, ohlc_data, equity_curve, strategy_instance=None, risk_
     s.loc['_trades'] = trades_df
     
     return Stats(s)
+
+
+
 
 
 

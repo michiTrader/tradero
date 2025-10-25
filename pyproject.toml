@@ -1,6 +1,6 @@
 [project]
 name = "tradero"
-version = "0.4.7"
+version = "0.5.0"
 description = "Framework completo de trading algorítmico con backtesting, trading en vivo, indicadores técnicos personalizados y herramientas avanzadas de gestión de riesgo"
 readme = "README.md"
 authors = [

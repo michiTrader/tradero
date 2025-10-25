@@ -12,6 +12,7 @@ from typing import Union, Literal
 from .lib import try_, minutes2timeframe, timeframe2minutes
 from .models import DataOHLC
 from ._util import ColorWayGenerator
+from .stats import trailing_drawdown
 
 # sin uso
 def align_indicator_to_original(
@@ -107,8 +108,10 @@ def plot(
     plot_equity: bool = True,
     plot_return: bool = True,
     plot_drawdown: bool = False,
+    plot_trailing_drawdown = False,
     plot_trades: bool = True,
     plot_volume: bool = True,
+    max_trailing_dd = None,
     relative_equity: bool = True,
     timeframe: str = None,
 ) -> None:
@@ -224,7 +227,7 @@ def plot(
         return resampled['value'].values, resampled.index
 
     def _process_bool_plot_parameters():
-        """Procesa los parámetros booleanos de plotting"""
+        """TODO Procesa los parámetros booleanos de plotting"""
         # global plot_equity, plot_trades, plot_drawdown
         # plot_equity = bool(plot_equity)
         # plot_trades = bool(plot_trades)
@@ -244,7 +247,7 @@ def plot(
             raise ValueError("ohlc_data no puede estar vacío")
 
 
-    def _create_fig_ohlc(data: DataOHLC, height=400, width=1200, output="notebook") -> tuple:
+    def _create_fig_ohlc(data: DataOHLC, height=450, width=1200, output="notebook") -> tuple:
 
         data = data.copy()
 
@@ -279,36 +282,36 @@ def plot(
             active_drag='xpan',
             active_scroll='xwheel_zoom',
         )
-        # estilos
-        if True:
-            # Configuracion de ejes 
-            # fig.xaxis.axis_label = 'Fecha'
-            fig.title.text_color = "#333333"
-            fig.xaxis.axis_label_text_color = "#333333"
-            fig.yaxis.axis_label_text_color = "#333333"
-            fig.xaxis.major_label_text_color = "#333333"
-            fig.yaxis.major_label_text_color = "#333333"
+        #region estilos
+        # Configuracion de ejes 
+        # fig.xaxis.axis_label = 'Fecha'
+        fig.title.text_color = "#333333"
+        fig.xaxis.axis_label_text_color = "#333333"
+        fig.yaxis.axis_label_text_color = "#333333"
+        fig.xaxis.major_label_text_color = "#333333"
+        fig.yaxis.major_label_text_color = "#333333"
 
-            # Evitar mostrar en connotacion cientifica los numeros del eje y
-            fig.yaxis.formatter.use_scientific = False
+        # Evitar mostrar en connotacion cientifica los numeros del eje y
+        fig.yaxis.formatter.use_scientific = False
 
-            # Cambiar el color de las líneas de los ejes y ticks a azul
-            fig.xaxis.axis_line_color = "#e0e6eb"
-            fig.yaxis.axis_line_color = "#e0e6eb"
-            fig.xaxis.major_tick_line_color = "#a5a5a5"
-            fig.yaxis.major_tick_line_color = "#c7c7c7"
-            fig.xaxis.minor_tick_line_color = "#c7c7c7"
-            fig.yaxis.minor_tick_line_color = "#c7c7c7"
+        # Cambiar el color de las líneas de los ejes y ticks a azul
+        fig.xaxis.axis_line_color = "#e0e6eb"
+        fig.yaxis.axis_line_color = "#e0e6eb"
+        fig.xaxis.major_tick_line_color = "#a5a5a5"
+        fig.yaxis.major_tick_line_color = "#c7c7c7"
+        fig.xaxis.minor_tick_line_color = "#c7c7c7"
+        fig.yaxis.minor_tick_line_color = "#c7c7c7"
 
-            # Cambiar el color del grid
-            fig.xgrid.grid_line_color = "#c7c7c7"
-            fig.ygrid.grid_line_color = "#c7c7c7"
-            fig.xgrid.grid_line_alpha = 0.5  # Opcional: ajustar la transparencia
-            fig.ygrid.grid_line_alpha = 0.5  # Opcional: ajustar la transparencia
-            fig.xgrid.minor_grid_line_color = "#e0e6eb"  # Color del grid menor
-            fig.ygrid.minor_grid_line_color = "#e0e6eb"  # Color del grid menor
-            fig.xgrid.minor_grid_line_alpha = 0.3  # Transparencia del grid menor
-            fig.ygrid.minor_grid_line_alpha = 0.3  # Transparencia del grid menor
+        # Cambiar el color del grid
+        fig.xgrid.grid_line_color = "#c7c7c7"
+        fig.ygrid.grid_line_color = "#c7c7c7"
+        fig.xgrid.grid_line_alpha = 0.5  # Opcional: ajustar la transparencia
+        fig.ygrid.grid_line_alpha = 0.5  # Opcional: ajustar la transparencia
+        fig.xgrid.minor_grid_line_color = "#e0e6eb"  # Color del grid menor
+        fig.ygrid.minor_grid_line_color = "#e0e6eb"  # Color del grid menor
+        fig.xgrid.minor_grid_line_alpha = 0.3  # Transparencia del grid menor
+        fig.ygrid.minor_grid_line_alpha = 0.3  # Transparencia del grid menor
+        #endregion
 
         inc_cmap = factor_cmap('inc', BAR_COLORS, ['0', '1'])
 
@@ -362,6 +365,25 @@ def plot(
         fig.yaxis.ticker.desired_num_ticks = 3
         return fig
 
+    def _configure_axis_style(fig):
+        # Cambiar el color de las líneas de los ejes y ticks a azul
+        fig.xaxis.axis_line_color = "#e0e6eb"
+        fig.yaxis.axis_line_color = "#e0e6eb"
+        fig.xaxis.major_tick_line_color = "#a5a5a5"
+        fig.yaxis.major_tick_line_color = "#c7c7c7"
+        fig.xaxis.minor_tick_line_color = "#c7c7c7"
+        fig.yaxis.minor_tick_line_color = "#c7c7c7"
+
+        # Cambiar el color del grid
+        fig.xgrid.grid_line_color = "#c7c7c7"
+        fig.ygrid.grid_line_color = "#c7c7c7"
+        fig.xgrid.grid_line_alpha = 0.5  # Opcional: ajustar la transparencia
+        fig.ygrid.grid_line_alpha = 0.5  # Opcional: ajustar la transparencia
+        fig.xgrid.minor_grid_line_color = "#e0e6eb"  # Color del grid menor
+        fig.ygrid.minor_grid_line_color = "#e0e6eb"  # Color del grid menor
+        fig.xgrid.minor_grid_line_alpha = 0.3  # Transparencia del grid menor
+        fig.ygrid.minor_grid_line_alpha = 0.3  # Transparencia del grid menor
+
     def _new_bokeh_figure(**kwargs):
         """Crea una nueva figura de Bokeh con configuración base"""
         defaults = {
@@ -381,47 +403,30 @@ def plot(
         # fig.y_range=Range1d(start=valor_min, end=valor_max),
         # fig.y_range.bounds = (valor_min, valor_max)
 
-        # configurar estilos
-        if True:
-            # CONFIGURACION DE EJES
-            fig.xaxis.visible = False
-            fig.yaxis.formatter.use_scientific = False
-            # Ocultar las etiquetas del eje X para ahorrar espacio
-            fig.xaxis.major_label_text_font_size = "0pt"
-            fig.xaxis.minor_tick_line_color = None
-            fig.xaxis.major_tick_line_color = None
+        #region configurar estilos
+        # CONFIGURACION DE EJES
+        fig.xaxis.visible = False
+        fig.yaxis.formatter.use_scientific = False
+        # Ocultar las etiquetas del eje X para ahorrar espacio
+        fig.xaxis.major_label_text_font_size = "0pt"
+        fig.xaxis.minor_tick_line_color = None
+        fig.xaxis.major_tick_line_color = None
 
-            fig.border_fill_color = "#E3EAF1FF"
-            fig.background_fill_color = "#E3EAF1FF"  # <-- EDIT COLOR -- 
-            fig.outline_line_color = '#E3EAF1FF' # <-- EDIT COLOR --
+        fig.border_fill_color = "#E3EAF1FF"
+        fig.background_fill_color = "#E3EAF1FF"  # <-- EDIT COLOR -- 
+        fig.outline_line_color = '#E3EAF1FF' # <-- EDIT COLOR --
 
-            # # Configuracion de ejes 
-            # fig.xaxis.axis_label = 'Fecha'
-            # fig.yaxis.axis_label = 'Precio'
-            # fig.title.text_color = "#FF0000FF"
-            # fig.xaxis.axis_label_text_color = "#333333"
-            # fig.yaxis.axis_label_text_color = "#333333"
-            # fig.xaxis.major_label_text_color = "#333333"
-            # fig.yaxis.major_label_text_color = "#333333"
+        # # Configuracion de ejes 
+        # fig.xaxis.axis_label = 'Fecha'
+        # fig.yaxis.axis_label = 'Precio'
+        # fig.title.text_color = "#FF0000FF"
+        # fig.xaxis.axis_label_text_color = "#333333"
+        # fig.yaxis.axis_label_text_color = "#333333"
+        # fig.xaxis.major_label_text_color = "#333333"
+        # fig.yaxis.major_label_text_color = "#333333"
 
-            # Cambiar el color de las líneas de los ejes y ticks a azul
-            fig.xaxis.axis_line_color = "#e0e6eb"
-            fig.yaxis.axis_line_color = "#e0e6eb"
-            fig.xaxis.major_tick_line_color = "#a5a5a5"
-            fig.yaxis.major_tick_line_color = "#c7c7c7"
-            fig.xaxis.minor_tick_line_color = "#c7c7c7"
-            fig.yaxis.minor_tick_line_color = "#c7c7c7"
-
-            # Cambiar el color del grid
-            fig.xgrid.grid_line_color = "#c7c7c7"
-            fig.ygrid.grid_line_color = "#c7c7c7"
-            fig.xgrid.grid_line_alpha = 0.5  # Opcional: ajustar la transparencia
-            fig.ygrid.grid_line_alpha = 0.5  # Opcional: ajustar la transparencia
-            fig.xgrid.minor_grid_line_color = "#e0e6eb"  # Color del grid menor
-            fig.ygrid.minor_grid_line_color = "#e0e6eb"  # Color del grid menor
-            fig.xgrid.minor_grid_line_alpha = 0.3  # Transparencia del grid menor
-            fig.ygrid.minor_grid_line_alpha = 0.3  # Transparencia del grid menor
-        
+        _configure_axis_style(fig)
+        #endregion
         return fig
 
 
@@ -531,115 +536,244 @@ def plot(
 
 
 
-    # def _add_drawdown_fig():
-        # """Añade figura de drawdown"""
-        # if not plot_drawdown or stats is None:
-        #     return None
+    def _add_drawdown_fig():
+        """Añade figura de drawdown"""
+        if stats is None:
+            return None
         
-        # if hasattr(stats, '_equity_curve') and 'DrawdownPct' in stats._equity_curve.columns:
-        #     drawdown_fig = _create_indicator_fig()
-        #     drawdown_fig.title.text = "Drawdown %"
+        if hasattr(stats, '_equity_curve') and 'DrawdownPct' in stats._equity_curve.columns:
+            drawdown_fig = _create_indicator_fig()
+            drawdown_fig.yaxis.axis_label = "Drawdown"
             
-        #     drawdown_data = stats._equity_curve['DrawdownPct']
-        #     drawdown_fig.line(x=drawdown_data.index, y=drawdown_data.values, 
-        #                     color='red', line_width=2, legend_label='Drawdown %')
+            drawdown_data = -stats._equity_curve['DrawdownPct']
+            # drawdown_fig.line(x=drawdown_data.index, y=drawdown_data.values, 
+            #                 color='red', line_width=2)
             
-        #     # Rellenar área bajo la curva
-        #     drawdown_fig.varea(x=drawdown_data.index, y1=0, y2=drawdown_data.values, 
-        #                         color='red', alpha=0.3)
+            # Rellenar área bajo la curva
+            drawdown_fig.varea(x=drawdown_data.index, y1=0, y2=drawdown_data.values, 
+                                color='red', alpha=0.65)
             
-        #     return drawdown_fig
+            return drawdown_fig
         
-        # return None
+        return None
 
-    def _add_equity_fig(is_return=False):
+    def _add_equity_fig(is_return, max_trailing_dd):
         """Añade figura de equity"""
         
         # if not hasattr(stats, '_equity_curve') and not 'Equity' in stats._equity_curve.columns:
         #     return None
 
         equity = stats._equity_curve['Equity'].copy().bfill()
+        max_trailing_dd = max_trailing_dd if max_trailing_dd is not None else equity.iloc[0] * 0.05
+        max_trailing_dd_pct = max_trailing_dd / equity.iloc[0] 
+        
+        # TODO dd_duration: pd.Series[pd.Timedelta] = s
         
         if relative_equity: # return %
-            equity /= equity.iloc[0]
-        if is_return: # return $
-            equity -= equity.iloc[0]
+            equity /=  equity.iloc[0]
+        if is_return: # return $ 
+            equity -=  equity.iloc[0]
+
+        peak, idx_peak = equity.max(), equity.idxmax()
+        final_perf, idx_final_perf = equity.iloc[-1],equity.index[-1]
+        dd = stats._equity_curve['DrawdownPct'].copy()
+        max_dd, max_dd_idx = dd.max(), dd.idxmax()
 
         # 
         if is_return:
-            legend_label =f'Return {equity.iloc[-1]:,.2%}' if relative_equity else f'Return ${equity.iloc[-1]:,.2f}'
+            perf_tag = 'Return'
         else: 
-            legend_label =f'Equity {equity.iloc[-1]:,.2%}' if relative_equity else f'Equity ${equity.iloc[-1]:,.2f}'
-
-
+            perf_tag = 'Equity'
+        perf_legend_label = f'{perf_tag} ({equity.iloc[-1]:,.2%})' if relative_equity else f'{perf_tag} (${equity.iloc[-1]:,.2f})'
+        peak_legend_label = f'Peak ({peak:,.2%})' if relative_equity else f'Peak ({peak:,.2f})'
+        maxdd_legend_label = f'Max. Drawdown ({max_dd:,.2%})'
+        trailing_legend_label = f'Trailing. dd (${max_trailing_dd})'
+        
         tick_format = "0,0.[00]%" if relative_equity else "$ 0.0 a"
-        color='#7A37EDFF' if is_return else '#3F56F0FF'
 
         # resamplear al timeframe requerido        
-        resampled_values, index = resample_indicator(equity, ohlc_base_data.index, required_timeframe)
-
+        resampled_equity_vals, equity_index = resample_indicator(equity, ohlc_base_data.index, required_timeframe)
+        
         # Crear la figura y renderer
-        equity_fig = _create_indicator_fig(name="equity", height=90)
+        equity_fig = _create_indicator_fig(name="equity", height=130)
+        
         # Agregar liena zero
         equity_fig.add_layout(Span(
             location=0, dimension='width', line_color='#929292FF', line_width=0.5, line_dash='dashed'))
         # Agregar linea de equity/retorno
-        equity_fig.line(x=index, y=resampled_values, 
-            color=color, line_width=2, 
-            legend_label=legend_label)
+        equity_fig.varea(
+            x=equity_index, 
+            y1=resampled_equity_vals[0], 
+            y2=resampled_equity_vals,
+            color='#3F56F0FF', alpha=0.65, 
+            legend_label=perf_legend_label
+        )
+        # equity_fig.line(x=dd_duration.index, y=dd_duration, 
+        #     color="#FF0000FF", line_width=2, 
+        #     legend_label=legend_label)
+        # Agregar linea de trailing dd 
+        if plot_trailing_drawdown: 
+            trailing_vals = trailing_drawdown(
+                resampled_equity_vals, 
+                max_trailing_dd_pct if relative_equity else max_trailing_dd
+            )
+            print()
+            print()
+            print(f'max_trailing: {max_trailing_dd}, pct: {max_trailing_dd_pct}, eq:{equity.iloc[0]}')
+            print("------------"*7)
+            # print(trailing_vals)
+            print("resampled_equity_vals")
+            print(resampled_equity_vals)
+            print("------------"*5)
+            print('trailing_vals')
+            print(trailing_vals)
+            print("------------"*7)
+            print()
+            print()
+            equity_fig.line(x=equity_index, y=trailing_vals, 
+                color='#000000', line_width=1, 
+                legend_label=trailing_legend_label, line_dash='dashed')  
+
+        equity_fig.scatter(x=max_dd_idx, y=equity.loc[max_dd_idx], 
+            color="#FF0000", size=6, 
+            legend_label=maxdd_legend_label)
+        equity_fig.scatter(x=idx_peak, y=peak, 
+            color="#7525FF", size=6, 
+            legend_label=peak_legend_label)
+        equity_fig.scatter(x=idx_final_perf, y=final_perf, 
+            color="#006EFF", size=6, 
+            legend_label=perf_legend_label)
 
         equity_fig.yaxis.formatter = NumeralTickFormatter(format=tick_format)
         equity_fig.yaxis.axis_label = 'Return' if is_return else 'Equity'
         
         return equity_fig
 
-    def _add_volume_fig(source_ohlc):
-        """Añade figura de volumen"""
+    # def _add_volume_fig(source_ohlc):
+        # """Añade figura de volumen"""
         
-        fig = _create_indicator_fig(name="volume", height=60, x_range=fig_ohlc.x_range)
-        # Añadir barras de volumen
-        # volume_data = resampled_ohlc_base_data.Volume
-        # index = resampled_ohlc_base_data.index
+        # fig = _create_indicator_fig(name="volume", height=60, x_range=fig_ohlc.x_range)
+        # # Añadir barras de volumen
+        # # volume_data = resampled_ohlc_base_data.Volume
+        # # index = resampled_ohlc_base_data.index
 
-        # source_volume = ColumnDataSource(dict(
-        #     x=index,
-        #     top=volume_data,
-        #     inc=(resampled_ohlc_base_data.Close > resampled_ohlc_base_data.Open).astype(np.uint8).astype(str),
-        # ))
+        # # source_volume = ColumnDataSource(dict(
+        # #     x=index,
+        # #     top=volume_data,
+        # #     inc=(resampled_ohlc_base_data.Close > resampled_ohlc_base_data.Open).astype(np.uint8).astype(str),
+        # # ))
 
-        inc_cmap = factor_cmap('inc', BAR_COLORS, ['0', '1'])
+        # inc_cmap = factor_cmap('inc', BAR_COLORS, ['0', '1'])
 
-        min_interval = required_interval
-        separation = 0.10
-        w = (min_interval - (separation * min_interval)) * 60 * 1000 
+        # min_interval = required_interval
+        # separation = 0.10
+        # w = (min_interval - (separation * min_interval)) * 60 * 1000 
         
-        fig.vbar(
-            x='Date', 
-            width=w, 
-            top=0, 
-            bottom="Volume",
-            color=inc_cmap, 
-            alpha=0.6,
-            source=source_ohlc,
-        )
+        # fig.vbar(
+        #     x='Date', 
+        #     width=w, 
+        #     top=0, 
+        #     bottom="Volume",
+        #     color=inc_cmap, 
+        #     alpha=0.6,
+        #     source=source_ohlc,
+        # )
 
-        fig.yaxis.axis_label = f'Volume'
+        # fig.yaxis.axis_label = f'Volume'
 
-        # JS para recalcular eje 'Y' automáticamente
-        volume_callback = CustomJS(
-            args=dict(
-                source=source_ohlc, 
-                y_range=fig.y_range, 
-                x_range=fig.x_range, 
-                mode="volume",
-                padding_factor=0.0,
-            ), 
-            code=_AUTOSCALE_JS_CALLBACK
-        )
-        fig.x_range.js_on_change('start', volume_callback)
-        fig.x_range.js_on_change('end', volume_callback)
+        # # JS para recalcular eje 'Y' automáticamente
+        # volume_callback = CustomJS(
+        #     args = dict(
+        #         source=source_ohlc, 
+        #         y_range=fig.y_range, 
+        #         x_range=fig.x_range, 
+        #         mode="volume",
+        #         padding_factor=0.0,
+        #     ), 
+        #     code=_AUTOSCALE_JS_CALLBACK
+        # )
+        # fig.x_range.js_on_change('start', volume_callback)
+        # fig.x_range.js_on_change('end', volume_callback)
         
-        return fig
+        # return fig
+
+    def _add_volume_renderer_to_ohlc(fig, source_ohlc, volume_height_ratio=0.35):
+            """Añade barras de volumen al gráfico OHLC usando un eje Y secundario
+            
+            Args:
+                fig: Figura de Bokeh del OHLC
+                source_ohlc: ColumnDataSource con los datos
+                volume_height_ratio: Proporción de altura que ocupará el volumen (0.0 a 1.0)
+                                    0.25 = volumen ocupa 25% de la altura del gráfico
+            """
+            from bokeh.models import LinearAxis, Range1d
+            
+            # Crear un rango Y secundario para el volumen
+            # El factor determina qué tan alto aparecerá el volumen
+            volume_max = source_ohlc.data['Volume'].max()
+            volume_range = Range1d(start=0, end=volume_max / volume_height_ratio)
+            fig.extra_y_ranges = {"volume": volume_range}
+            
+            # Añadir el eje Y secundario en el lado derecho
+            volume_axis = LinearAxis(y_range_name="volume", axis_label="Volume")
+            volume_axis.formatter = NumeralTickFormatter(format="0.0a")
+            fig.add_layout(volume_axis, 'right')
+            
+            # Configurar colores y ancho de barras
+            inc_cmap = factor_cmap('inc', BAR_COLORS, ['0', '1'])
+            min_interval = required_interval
+            separation = 0.10
+            w = (min_interval - (separation * min_interval)) * 60 * 1000 
+            
+            # Añadir las barras de volumen usando el rango secundario
+            fig.vbar(
+                x='Date', 
+                width=w, 
+                top='Volume',
+                bottom=0,
+                color=inc_cmap, 
+                alpha=0.3,
+                source=source_ohlc,
+                y_range_name="volume",
+                legend_label=f"Volume"
+            )
+            
+            # JS MEJORADO para auto-escalar el volumen manteniendo el ratio
+            volume_callback = CustomJS(
+                args = dict(
+                    source=source_ohlc, 
+                    y_range=volume_range, 
+                    x_range=fig.x_range, 
+                    mode="volume",
+                    padding_factor=0.0,
+                    height_ratio=volume_height_ratio,  # Pasar el ratio al JS
+                ), 
+                code="""
+                    const data = source.data;
+                    const x = data['Date'];
+                    const start = x_range.start;
+                    const end = x_range.end;
+                    
+                    let maxY = -Infinity;
+                    const vol = data['Volume'];
+                    
+                    for (let i = 0; i < x.length; i++) {
+                        if (x[i] >= start && x[i] <= end) {
+                            if (vol[i] > maxY) maxY = vol[i];
+                        }
+                    }
+                    
+                    if (maxY > -Infinity) {
+                        // Aplicar el ratio de altura para mantener el volumen bajo
+                        y_range.start = 0;
+                        y_range.end = maxY / height_ratio;  // Usar el ratio aquí
+                    }
+                """
+            )
+            fig.x_range.js_on_change('start', volume_callback)
+            fig.x_range.js_on_change('end', volume_callback)
+            _configure_axis_style(fig)
+
 
     def _add_trades_renderer():
         """Añade los trades como puntos en el gráfico OHLC"""
@@ -814,14 +948,16 @@ def plot(
                 f.legend.border_line_width = 0.1
                 f.legend.border_line_color = '#C6C6C6FF'
                 f.legend.padding = 3
-                f.legend.spacing = 20
+                # f.legend.spacing = 20
+                f.legend.spacing = 2
                 f.legend.margin = 0
                 f.legend.border_radius = 3
                 f.legend.label_text_font_size = '8pt'
                 f.legend.click_policy = "hide"
                 f.legend.background_fill_color = "#e0e6eb"  # Cambia el color del fondo
                 f.legend.background_fill_alpha = 0.8  # Ajusta la transparencia del fondo
-                f.legend.orientation = "horizontal"
+                # f.legend.orientation = "horizontal"
+                f.legend.orientation = "vertical"
             # if f.legend:
             #     f.legend.visible = show_legend
             #     f.legend.location = 'top_left'
@@ -858,21 +994,26 @@ def plot(
 
     # Añadir figuras superiores
     if plot_equity:
-        equity_fig = _add_equity_fig()
+        equity_fig = _add_equity_fig(is_return=False, max_trailing_dd=max_trailing_dd)
         figs_above_ohlc.append(equity_fig)
     if plot_return:
-        equity_fig = _add_equity_fig(is_return=True)
+        equity_fig = _add_equity_fig(is_return=True, max_trailing_dd=max_trailing_dd)
         figs_above_ohlc.append(equity_fig)
     
-    # TODO: drawdown_fig
+    # drawdown_fig
     # drawdown_fig = _add_drawdown_fig()
     # if drawdown_fig:
     #     figs_above_ohlc.append(drawdown_fig)
+    # drawdown_fig
+    if plot_drawdown:
+        drawdown_fig = _add_drawdown_fig()
+        figs_above_ohlc.append(drawdown_fig)
 
     # Añadir figuras inferiores
     if plot_volume:
-        volume_fig = _add_volume_fig(source_ohlc)
-        figs_below_ohlc.append(volume_fig)
+        # volume_fig = _add_volume_fig(source_ohlc)
+        # figs_below_ohlc.append(volume_fig)
+        _add_volume_renderer_to_ohlc(fig_ohlc, source_ohlc)
 
     # Añadir trades
     if plot_trades:

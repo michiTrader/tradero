@@ -2011,7 +2011,7 @@ class Backtest:
                  maker_fee: float = 0.000, taker_fee: float = 0.000, 
                  margin: float = 0.1, margin_mode: str = 'ISOLATED_MARGIN', 
                  mae_mfe_metric_type='ROI', tz: str = "UTC",
-                 warmup: int = 0, strategy_config: dict = None,
+                 warmup: int = 0, strategy_config: dict = None
     ):
         self._total_bars = len(packet)
         self._strategy_obj = strategy
@@ -2185,7 +2185,7 @@ class Backtest:
             ohlc_data=ohlc_data,
             equity_curve=equity_curve,
             strategy_instance=self._strategy,
-            mae_metric_type="ROE"
+            mae_metric_type="ROE",
         )
 
         # Guardar los indicadores de la sesion
@@ -2349,7 +2349,8 @@ class Backtest:
         plot_return=False,
         # plot_pl=True,
         plot_volume=True,
-        # plot_drawdown=False,
+        plot_drawdown=False,
+        plot_trailing_drawdown=True,
         plot_trades=True,
         # smooth_equity=False,
         relative_equity=True,
@@ -2358,7 +2359,8 @@ class Backtest:
         resample=True,
         resample_freq_rule=None,
         # show_legend=True,
-        timeframe=None
+        timeframe=None,
+        max_trailing_dd=None,
     ):
         """
             Genera un gráfico interactivo del backtest usando Bokeh
@@ -2380,6 +2382,7 @@ class Backtest:
                 resample: Si remuestrear datos
                 resample_freq_rule: Regla de frecuencia para remuestreo
                 show_legend: Si mostrar leyenda
+                max_trailing_dd: max_trailing_dd en valor absoluto ($)
                 **kwargs: Argumentos adicionales para indicadores
             
             Returns:
@@ -2424,13 +2427,13 @@ class Backtest:
             timeframe=timeframe,
             plot_equity = plot_equity,
             plot_return = plot_return,
-            # TODO plot_drawdown = plot_drawdown,
+            plot_drawdown = plot_drawdown,
+            plot_trailing_drawdown = plot_trailing_drawdown,
             plot_trades = plot_trades,
             plot_volume = plot_volume,
-            relative_equity = relative_equity
+            relative_equity = relative_equity,
+            max_trailing_dd = max_trailing_dd,
         )
-
-
 
 
 

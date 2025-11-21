@@ -63,7 +63,7 @@ def count_available_resample_bars_nb(
         
     # Usar los valores en milisegundos directamente
     primer_ms = timestamps_values[0]
-    ultimo_ms = timestamps_values[max(0, idx-1)]
+    ultimo_ms = timestamps_values[idx]
     
     # Convertir a minutos
     MS_POR_MINUTO = 60_000

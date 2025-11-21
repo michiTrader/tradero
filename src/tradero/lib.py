@@ -127,7 +127,7 @@ def minutes2timeframe(minutes: int|float) -> str:
     elif minutes % 525600 == 0:
         return f"{minutes // 525600}YE"
     else:
-        raise ValueError(f"No se puede convertir automáticamente el valor {minutes} a timeframe válido")
+        return f"{int(minutes)}min"
 
 def find_minutes_timeframe(index: Union[pd.DatetimeIndex, np.ndarray]) -> int:
     """
@@ -144,16 +144,23 @@ def find_minutes_timeframe(index: Union[pd.DatetimeIndex, np.ndarray]) -> int:
         >>> df = pd.DataFrame(index=pd.to_datetime(["2025-02-07 12:00:00", "2025-02-07 12:05:00"]))
         >>> find_timeframe(df)
     """
-    if len(index) < 2:
-        return None  # Retorna None si hay menos de dos registros   
+    if len(index) < 4:
+        return None  # Retorna None si hay menos de 4 registros   
     
     if isinstance(index, np.ndarray):
         index = pd.DatetimeIndex(index)
 
-    first_time = index[1]
-    second_time = index[0]
+    first_time = index[0]
+    second_time = index[1]
+    third_time = index[2]
+    fourth_time = index[3]
+
+    diff_1 = int((second_time - first_time).total_seconds() // 60)
+    diff_2 = int((fourth_time - third_time).total_seconds() // 60)
     
-    return int((first_time - second_time).total_seconds() // 60)  # Convertir segundos a minutos  # Retorna un entero con los minutos completos
+    if diff_1 == diff_2:
+        return diff_1  # Convertir segundos a minutos  # Retorna un entero con los minutos completos
+    return diff_2  # Convertir segundos a minutos  # Retorna un entero con los minutos completos
 
 def npdt64_to_datetime(np_dt64):
     """Convierte numpy.datetime64 a datetime de Python"""

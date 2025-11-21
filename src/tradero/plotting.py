@@ -3,12 +3,13 @@ import pandas as pd
 from bokeh.plotting import figure, show, output_notebook
 from bokeh.models import (
     Span, HoverTool, Legend, LegendItem, 
-    ColumnDataSource, Range1d, DataRange1d, CustomJS
+    ColumnDataSource, Range1d, DataRange1d, CustomJS,
+    CrosshairTool
     )
 from bokeh.layouts import column, gridplot
 from bokeh.transform import factor_cmap
 from bokeh.models.formatters import NumeralTickFormatter
-from typing import Union, Literal
+from typing import Any, Union, Literal
 from .lib import try_, minutes2timeframe, timeframe2minutes
 from .models import DataOHLC
 from ._util import ColorWayGenerator
@@ -260,8 +261,8 @@ def plot(
         dec = data.Open > data.Close 
         
         df = data.df
-        df["Date"] = df.index.values.astype('int64') // 1_000_000
-
+        df["Date"] = df.index.values.astype('int64') // 1_000_000 
+        
         # Convertir a ColumnDataSource para Bokeh
         source_ohlc = ColumnDataSource(df)
         source_ohlc.add((data.Close >= data.Open).astype(np.uint8).astype(str), 'inc')
@@ -319,7 +320,7 @@ def plot(
         fig.segment('Date', 'High', 'Date', 'Low', 
                 source=source_ohlc, color=inc_cmap, line_width=2, legend_label=f"OHLC ·{required_timeframe}"
         )
-        fig.vbar(
+        bars = fig.vbar(
             'Date', w, 'Open', 'Close', source=source_ohlc, 
             fill_color=inc_cmap, line_color=inc_cmap, line_width=0, legend_label=f"OHLC ·{required_timeframe}"
         )
@@ -334,6 +335,8 @@ def plot(
                 ("Mínimo", "@Low{0,0}"),
             ],
             formatters={"@Date": "datetime"},
+            mode='mouse',
+            renderers=[bars]
         )
 
         fig.add_tools(hover)
@@ -601,13 +604,22 @@ def plot(
         equity_fig.add_layout(Span(
             location=0, dimension='width', line_color='#929292FF', line_width=0.5, line_dash='dashed'))
         # Agregar linea de equity/retorno
-        equity_fig.varea(
+        equity_fig.line(
             x=equity_index, 
-            y1=resampled_equity_vals[0], 
-            y2=resampled_equity_vals,
-            color='#3F56F0FF', alpha=0.65, 
+            y=pd.Series(resampled_equity_vals).ffill(),
+            color='#3F56F0FF', 
+            alpha=0.8,
+            line_width=3, 
             legend_label=perf_legend_label
         )
+        # equity_fig.varea(
+        #     x=equity_index, 
+        #     y1=resampled_equity_vals[0], 
+        #     y2=resampled_equity_vals,
+        #     color='#3F56F0FF', alpha=0.65, 
+        #     legend_label=perf_legend_label
+        # )
+        # linea de duracion de dd maxima
         # equity_fig.line(x=dd_duration.index, y=dd_duration, 
         #     color="#FF0000FF", line_width=2, 
         #     legend_label=legend_label)
@@ -617,19 +629,6 @@ def plot(
                 resampled_equity_vals, 
                 max_trailing_dd_pct if relative_equity else max_trailing_dd
             )
-            print()
-            print()
-            print(f'max_trailing: {max_trailing_dd}, pct: {max_trailing_dd_pct}, eq:{equity.iloc[0]}')
-            print("------------"*7)
-            # print(trailing_vals)
-            print("resampled_equity_vals")
-            print(resampled_equity_vals)
-            print("------------"*5)
-            print('trailing_vals')
-            print(trailing_vals)
-            print("------------"*7)
-            print()
-            print()
             equity_fig.line(x=equity_index, y=trailing_vals, 
                 color='#000000', line_width=1, 
                 legend_label=trailing_legend_label, line_dash='dashed')  
@@ -786,7 +785,7 @@ def plot(
             trades_source = ColumnDataSource(dict(
                 index=trades_df["ExitBar"],
                 datetime=trades_df["ExitTime"],
-                size=trades_df["Size"],
+                volume=trades_df["Volume"],
                 returns_positive=(trades_df['ReturnPct'] > 0).astype(int).astype(str),
                 # lines_x0=trades_df["EntryTime"],
                 # lines_x1=trades_df["ExitTime"],
@@ -978,6 +977,41 @@ def plot(
                 f.min_border_top = 10     # Espacio superior
                 f.min_border_bottom = 10  # Espacio inferior
             
+    def _configure_crosshair(figs: list, line_color='black', line_width=1, line_dash='dashed', line_alpha=0.4):
+        # --- Crear las líneas verticales (una por figura) ---
+        vlines = []
+        for p in figs:
+            # crosshair horizontal
+            p.add_tools(
+                CrosshairTool(
+                    dimensions='width', 
+                    line_color=line_color, 
+                    line_width=line_width, 
+                    line_alpha=line_alpha
+                )
+            )
+
+            # vertical
+            v = Span(location=0, 
+                dimension="height", 
+                line_color=line_color, 
+                line_width=line_width, 
+                line_dash=line_dash, 
+                line_alpha=line_alpha
+            )
+            
+            p.add_layout(v)
+            vlines.append(v)
+
+        # --- Callback JavaScript para sincronizar todas ---
+        args = {f"v{i}": v for i, v in enumerate(vlines)}
+        code = "\n".join([f"v{i}.location = cb_obj.x;" for i in range(len(vlines))])
+        callback = CustomJS(args=args, code=code)
+
+        # --- Asignar el callback a todas las figuras ---
+        for fig in all_figs:
+            fig.js_on_event('mousemove', callback)
+
     # f.outline_line_color = '#666666'
 
     # Procesar parámetros
@@ -1027,7 +1061,9 @@ def plot(
 
     # Configuraciones adicionales 
     _configure_margin(all_figs)
-    _configure_legends(all_figs)
+    _configure_legends(all_figs) 
+    _configure_crosshair(all_figs) 
+
 
     # preparar el grid de figuras (en una columna)
     grid_layout = [[fig] for fig in all_figs]

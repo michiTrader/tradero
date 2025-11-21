@@ -28,17 +28,17 @@ import gc
 
 
 class Order:
-    __slots__ = ['id', 'symbol', 'size', 'price', 'order_type', 'side', 
+    __slots__ = ['id', 'symbol', 'volume', 'price', 'order_type', 'side',  
     'take_profit', 'stop_loss', 'status', 'created_at', 'executed_at', 'cancel_reason']
 
 
-    def __init__(self, symbol: str, size: float, price: Optional[float] = None, 
-             order_type: str = 'market', side: str = 'Buy',
+    def __init__(self, symbol: str, volume: float, price: Optional[float] = None,  
+             order_type: str = 'Market', side: str = 'Buy',
              take_profit: Optional[float] = None, stop_loss: Optional[float] = None,
              created_at: Optional[datetime] = None):
         self.id = str(uuid.uuid4())[:8]
         self.symbol = symbol.upper()
-        self.size = abs(size)
+        self.volume = abs(volume)  
         self.price = price
         self.order_type = order_type.title()
         self.side = side.title()
@@ -50,7 +50,7 @@ class Order:
              
     def __repr__(self):
         attrs = [f"Id={self.id}", f"Symbol={self.symbol}", f"Side={self.side.title()}", 
-                f"Type={self.order_type.title()}", f"Size={self.size}", f"Status={self.status.title()}"]
+                f"Type={self.order_type.title()}", f"Volume={self.volume}", f"Status={self.status.title()}"] 
         
         if self.price is not None: attrs.append(f"Price={self.price}")
         if self.take_profit is not None: attrs.append(f"TP={self.take_profit}")
@@ -62,16 +62,16 @@ class Order:
         return self.__repr__()
 
 class Trade:
-    __slots__ = ['id', 'order_id', 'symbol', 'size', 'entry_price', 'exit_price', 'side', 'commission', 
+    __slots__ = ['id', 'order_id', 'symbol', 'volume', 'entry_price', 'exit_price', 'side', 'commission',  
         'entry_time', 'exit_time', 'take_profit', 'stop_loss', 'max_price', 'min_price', 'mae', 'mfe']
     
-    def __init__(self, order_id: str, symbol: str, size: float, entry_price: float, 
+    def __init__(self, order_id: str, symbol: str, volume: float, entry_price: float, 
                  side: str, commission: float, exit_price: Optional[float] = None,
                  entry_time: Optional[datetime] = None, exit_time: Optional[datetime] = None):
         self.id = str(uuid.uuid4())[:8]
         self.order_id = order_id
         self.symbol = symbol.upper()
-        self.size = size
+        self.volume = volume 
         self.entry_price = entry_price
         self.exit_price = exit_price
         self.side = side.title()
@@ -89,16 +89,16 @@ class Trade:
         
         side_normalized = self.side.title()
         if side_normalized in ['Buy', 'Long']:
-            return (self.exit_price - self.entry_price) * self.size - self.commission
+            return (self.exit_price - self.entry_price) * self.volume - self.commission  
         else:  # Sell/Short
-            return (self.entry_price - self.exit_price) * self.size - self.commission
+            return (self.entry_price - self.exit_price) * self.volume - self.commission  
     
     @property
     def return_pct(self) -> Optional[float]:
         """Calcula el retorno porcentual del trade"""
         if self.pnl is None:
             return None
-        return (self.pnl / (self.entry_price * self.size)) * 100
+        return (self.pnl / (self.entry_price * self.volume)) * 100 
     
     @property
     def type(self) -> str:
@@ -107,36 +107,21 @@ class Trade:
         
     def __repr__(self):
         attrs = [f"Id={self.id}", f"Symbol={self.symbol}", f"Side={self.side.title()}", 
-                f"Type={self.type}", f"Size={self.size}", f"EntryPrice={self.entry_price}"]
-        
-        # optional_attrs = [
-        #     (self.exit_price, f"ExitPrice={self.exit_price}"),
-        #     (self.pnl, f"Pnl={self.pnl:.2f}"),
-        #     (self.return_pct, f"ReturnPct={self.return_pct:.2f}%"),
-        #     (self.entry_time, f"EntryTime={self.entry_time.strftime('%Y-%m-%d %H:%M:%S')}"),
-        #     (self.exit_time, f"ExitTime={self.exit_time.strftime('%Y-%m-%d %H:%M:%S')}"),
-        #     (self.take_profit, f"TP={self.take_profit}"),
-        #     (self.stop_loss, f"SL={self.stop_loss}"),
-        #     (self.mae, f"mae={self.mae}"),
-        #     (self.mfe, f"mfe={self.mfe}"),
-        # ]
-        
-        # attrs.extend([attr for value, attr in optional_attrs if value is not None])
-        return f"Trade({', '.join(attrs)})"
+                f"Type={self.type}", f"Volume={self.volume}", f"EntryPrice={self.entry_price}"]
 
     def __str__(self):
         return self.__repr__()
 
 class Position:
-    __slots__ = ['id', 'symbol', 'size', 'entry_price', 'side', 'leverage',
+    __slots__ = ['id', 'symbol', 'volume', 'entry_price', 'side', 'leverage',  
                  'status', 'opened_at', 'closed_at',
                  'unrealized_pnl', 'max_price', 'min_price']
     
-    def __init__(self, symbol: str, size: float, entry_price: float, 
+    def __init__(self, symbol: str, volume: float, entry_price: float,  
                  side: str, opened_at, leverage: int = 1):
         self.id = str(uuid.uuid4())[:8]
         self.symbol = symbol.upper()
-        self.size = abs(size)
+        self.volume = abs(volume)  
         self.entry_price = entry_price
         self.side = side.title()
         self.leverage = leverage
@@ -155,11 +140,9 @@ class Position:
             return
             
         if self.side == 'Long':
-            # Para posiciones largas: ganancia cuando el precio sube
-            pnl = (current_price - self.entry_price) * self.size
+            pnl = (current_price - self.entry_price) * self.volume  
         else:  # Short
-            # Para posiciones cortas: ganancia cuando el precio baja
-            pnl = (self.entry_price - current_price) * self.size
+            pnl = (self.entry_price - current_price) * self.volume  
             
         self.unrealized_pnl = pnl
 
@@ -172,56 +155,44 @@ class Position:
         self.min_price = min(self.min_price, low_price)
 
     def calculate_mae_mfe(self, cash: float, metric_type: str = 'ROI'):
-        """
-        Calcula MAE (Maximum Adverse Excursion) y MFE (Maximum Favorable Excursion)
-        
-        Args:
-            cash: efectivo disponible
-            metric_type: tipo de métrica ('ROI', 'ABSOLUTE', etc.)
-        """
         if self.status != 'Open':
             return
             
         # Calcular el PnL en el precio máximo y mínimo
         if self.side == 'Long':
-            # Para long: MFE en el precio máximo, MAE en el precio mínimo
-            mfe_pnl = (self.max_price - self.entry_price) * self.size
-            mae_pnl = (self.min_price - self.entry_price) * self.size
+            mfe_pnl = (self.max_price - self.entry_price) * self.volume 
+            mae_pnl = (self.min_price - self.entry_price) * self.volume 
         else:  # Short
-            # Para short: MFE en el precio mínimo, MAE en el precio máximo
-            mfe_pnl = (self.entry_price - self.min_price) * self.size
-            mae_pnl = (self.entry_price - self.max_price) * self.size
-        
-        # Almacenar los valores (podrías agregar estos atributos si los necesitas)
-        # self.mfe = mfe_pnl
-        # self.mae = mae_pnl
+            mfe_pnl = (self.entry_price - self.min_price) * self.volume 
+            mae_pnl = (self.entry_price - self.max_price) * self.volume 
 
     def close(self, closed_at=None):
         """Cierra la posición"""
         self.status = 'Closed'
         self.closed_at = closed_at
         self.unrealized_pnl = 0.0
-        self.side = ''
+        self.side = ''  # ← Mantener esto
 
     def __repr__(self):
         return (f"Position(Symbol={self.symbol}, Side={self.side}, "
-                f"Size={self.size}, Entry={self.entry_price}, "
+                f"Volume={self.volume}, Entry={self.entry_price}, " 
                 f"Status={self.status}, UnrealizedPnL={self.unrealized_pnl:.2f})")
 
 class _Exchange:
     """Broker principal para el sistema de backtesting"""
     
     def __init__(self, cash: float, maker_fee: float = 0.000, 
-                 taker_fee: float = 0.000, 
-                 margin_mode: str = 'ISOLATED_MARGIN', mae_mfe_metric_type='ROI'
-    ):
+                taker_fee: float = 0.000, 
+                margin: float = 0.01,  # ← NUEVO: por defecto 1/100 = leverage 100x
+                margin_mode: str = 'ISOLATED_MARGIN', 
+                mae_mfe_metric_type='ROI'):
         self.initial_cash = cash 
         self.cash = cash
         self.maker_fee = maker_fee
         self.taker_fee = taker_fee
-        self.margin = 1.
+        self.margin = margin
         self.margin_mode = margin_mode.upper()
-        
+
         self._symbol_margins = {}
         
         # Contenedores de datos
@@ -257,36 +228,36 @@ class _Exchange:
         else:  # Cross
             return self.total_equity
     
-    def _calculate_required_margin(self, size: float, price: float, symbol: str = None) -> float:
+    def _calculate_required_margin(self, volume: float, price: float, symbol: str = None) -> float:
         """Calcula el margen requerido para una posición"""
-        notional_value = size * price
+        notional_value = volume * price
         # Usar margen específico del símbolo si existe, sino usar el global
         margin = self._symbol_margins.get(symbol, self.margin) if symbol else self.margin
         return notional_value * margin
     
-    def _can_open_position(self, size: float, price: float, symbol: str = None) -> bool:
+    def _can_open_position(self, volume: float, price: float, symbol: str = None) -> bool:
         """Verifica si hay suficiente margen para abrir una posición"""
-        required_margin = self._calculate_required_margin(size, price, symbol)
+        required_margin = self._calculate_required_margin(volume, price, symbol)
         available_margin = self._get_available_margin()
         return available_margin >= required_margin
 
-    def place_order(self, symbol: str, type: str, size: float, limit: Optional[float] = None,
-                   stop: Optional[float] = None, take_profit: Optional[float] = None,
-                   stop_loss: Optional[float] = None) -> str:
+    def place_order(self, symbol: str, type: str, volume: float, limit: Optional[float] = None, 
+                stop: Optional[float] = None, take_profit: Optional[float] = None,
+                stop_loss: Optional[float] = None) -> str:
         """
-        Coloca una orden de trading
-        
-        Args:
-            symbol: símbolo del activo (ej: "BTCUSDT")
-            type: 'Buy' o 'Sell'
-            size: tamaño de la orden
-            limit: precio límite (para órdenes Limit)
-            stop: precio de stop (para órdenes Stop)
-            take_profit: precio de take profit
-            stop_loss: precio de stop loss
+            Coloca una orden de trading
             
-        Returns:
-            ID de la orden creada
+            Args:
+                symbol: símbolo del activo (ej: "BTCUSDT")
+                type: 'Buy' o 'Sell'
+                volume: tamaño de la orden
+                limit: precio límite (para órdenes Limit)
+                stop: precio de stop (para órdenes Stop)
+                take_profit: precio de take profit
+                stop_loss: precio de stop loss
+                
+            Returns:
+                ID de la orden creada
         """
         symbol = symbol.upper()
         type = type.title()
@@ -296,7 +267,8 @@ class _Exchange:
         if symbol not in self.current_close:
             raise ValueError(f"No hay precio disponible para {symbol}. Ejecuta update_market primero.")
         
-        # Determinar tipo de orden
+        # ← CORRECCIÓN AQUÍ: Mejorar la lógica de determinación de tipo de orden
+        # Determinar tipo de orden (el orden de evaluación importa)
         if limit is not None:
             order_type = 'Limit'
             price = limit
@@ -304,13 +276,14 @@ class _Exchange:
             order_type = 'Stop'
             price = stop
         else:
-            order_type = 'market'
+            # Si no hay limit ni stop, es Market order
+            order_type = 'Market'
             price = self.current_close[symbol]
-            
+        
         # Crear la orden
         order = Order(
             symbol=symbol,
-            size=size,
+            volume=volume, 
             price=price,
             order_type=order_type,
             side=type,
@@ -320,26 +293,34 @@ class _Exchange:
         )
 
         # Verificar margen disponible usando el símbolo
-        if not self._can_open_position(order.size, price, symbol):
-            required_margin = self._calculate_required_margin(order.size, price, symbol)
+        if not self._can_open_position(order.volume, price, symbol):
+            required_margin = self._calculate_required_margin(order.volume, price, symbol)
             available_margin = self._get_available_margin()
             leverage = self.get_symbol_leverage(symbol)
             raise ValueError(f"Margen insuficiente para {symbol}. Requerido: {required_margin:.2f}, "
-                           f"Disponible: {available_margin:.2f}, Leverage: {leverage}x")
+                        f"Disponible: {available_margin:.2f}, Leverage: {leverage}x")
 
         # Agregar al historial completo
         self.all_orders_history.append(order)
-        # Ejecutar inmediatamente si es market order
-        if order_type == 'market':
+        
+        # ← CORRECCIÓN: Ejecutar inmediatamente si es Market order
+        if order_type == 'Market':
             self._execute_order(order, self.current_close[symbol])
         else:
             self.orders.append(order)
+            if symbol in self.current_ohlc:
+                exec_price = self._should_execute_order(order, self.current_ohlc[symbol])
+                if exec_price is not None:
+                    self._execute_order(order, exec_price)
+                # Evaluar todas las órdenes gatilladas en esta barra priorizando cierres perdedores
+                self._execute_triggered_orders_current_bar(symbol)
             
         return order.id
 
     # TODO: crear un atributo donde se guarden las ordenes canceladas
     def _execute_order(self, order: Order, execution_price: Union[float, int]) -> bool:
         """Ejecuta una orden al precio especificado"""
+
         assert isinstance(execution_price, (float, int)), "execution_price debe ser float o int"
         assert isinstance(order, Order), "order debe ser una instancia de Order"
         symbol = order.symbol
@@ -357,7 +338,7 @@ class _Exchange:
                 (order.side == 'Sell' and position.side == 'Long'):
                     
                     # Ejecutar cierre parcial CON EL ORDER_ID CORRECTO
-                    self._execute_partial_close(symbol, execution_price, order.size, order.id)
+                    self._execute_partial_close(symbol, execution_price, order.volume, order.id)
                     
                     # Marcar orden como ejecutada
                     order.status = 'Filled'
@@ -401,13 +382,13 @@ class _Exchange:
         # Calcular comisión
         is_maker = order.order_type == 'Limit'
         fee_rate = self.maker_fee if is_maker else self.taker_fee
-        fee = order.size * execution_price * fee_rate
+        fee = order.volume * execution_price * fee_rate
         
         # Crear el trade
         trade = Trade(
             order_id=order.id,
             symbol=symbol,
-            size=order.size,
+            volume=order.volume,  
             entry_price=execution_price,
             side=order.side,
             commission=fee,
@@ -425,7 +406,7 @@ class _Exchange:
             side = 'Long' if order.side == 'Buy' else 'Short'
             self.positions[symbol] = Position(
                 symbol=symbol,
-                size=order.size,
+                volume=order.volume,
                 entry_price=execution_price,
                 side=side,
                 opened_at=timestamp,
@@ -433,20 +414,24 @@ class _Exchange:
             )
             
             # Crear órdenes TP/SL automáticamente si están especificadas
-            if order.take_profit:
-                self._create_tp_sl_orders(symbol, tp_price=order.take_profit, tp_size=order.size)
-            if order.stop_loss:
-                self._create_tp_sl_orders(symbol, sl_price=order.stop_loss, sl_size=order.size)
-                
+            if order.take_profit or order.stop_loss:
+                self._create_tp_sl_orders(
+                    symbol,
+                    tp_price=order.take_profit,
+                    sl_price=order.stop_loss,
+                    tp_volume=order.volume,
+                    sl_volume=order.volume,
+                )
+                self._execute_triggered_orders_current_bar(symbol, only_tp_sl=True)
         else:
             # Actualizar posición existente del mismo lado
             position = self.positions[symbol]
             if position.side == ('Long' if order.side == 'Buy' else 'Short'):
-                total_cost = (position.size * position.entry_price) + (order.size * execution_price)
-                total_size = position.size + order.size
-                position.entry_price = total_cost / total_size
-                position.size = total_size
-        
+                total_cost = (position.volume * position.entry_price) + (order.volume * execution_price) 
+                total_volume = position.volume + order.volume  
+                position.entry_price = total_cost / total_volume
+                position.volume = total_volume 
+
         # Actualizar estado de la orden
         order.status = 'Filled'
         order.executed_at = timestamp
@@ -461,10 +446,12 @@ class _Exchange:
             
         return True
 
+        return True
+
     def _create_tp_sl_orders(self, symbol: str, tp_price: Optional[float] = None, 
                             sl_price: Optional[float] = None,
-                            tp_size: Optional[float] = None,
-                            sl_size: Optional[float] = None):
+                            tp_volume: Optional[float] = None,
+                            sl_volume: Optional[float] = None):
         """Método auxiliar para crear órdenes TP/SL automáticamente"""
         if symbol not in self.positions or self.positions[symbol].status != 'Open':
             return
@@ -472,8 +459,8 @@ class _Exchange:
         position = self.positions[symbol]
         
         if tp_price is not None:
-            size = tp_size if tp_size is not None else position.size
-            size = min(size, position.size)
+            volume = tp_volume if tp_volume is not None else position.volume
+            volume = min(volume, position.volume)
             
             # Determinar el lado de la orden TP (opuesto a la posición)
             tp_side = 'Sell' if position.side == 'Long' else 'Buy'
@@ -481,22 +468,24 @@ class _Exchange:
             # Crear orden TP como orden límite
             tp_order = Order(
                 symbol=symbol,
-                size=size,
+                volume=volume,
                 price=tp_price,
                 order_type='Limit',
                 side=tp_side,
                 created_at=self.current_timestamp
             )
             tp_order.id = f"TP_{position.id}_{len([o for o in self.orders if o.symbol == symbol])}"
-            tp_order.status = 'Untriggered'  # ← AGREGAR ESTA LÍNEA
+            tp_order.status = 'Placed'
             
             # Agregar a órdenes pendientes y historial
             self.orders.append(tp_order)
             self.all_orders_history.append(tp_order)
+            if sl_price is None and symbol in self.current_ohlc:
+                self._execute_triggered_orders_current_bar(symbol, only_tp_sl=True)
             
         if sl_price is not None:
-            size = sl_size if sl_size is not None else position.size
-            size = min(size, position.size)
+            volume = sl_volume if sl_volume is not None else position.volume
+            volume = min(volume, position.volume)
             
             # Determinar el lado de la orden SL (opuesto a la posición)
             sl_side = 'Sell' if position.side == 'Long' else 'Buy'
@@ -504,18 +493,20 @@ class _Exchange:
             # Crear orden SL como orden stop
             sl_order = Order(
                 symbol=symbol,
-                size=size,
+                volume=volume,
                 price=sl_price,
                 order_type='Stop',
                 side=sl_side,
                 created_at=self.current_timestamp
             )
             sl_order.id = f"SL_{position.id}_{len([o for o in self.orders if o.symbol == symbol])}"
-            sl_order.status = 'Untriggered'  # ← AGREGAR ESTA LÍNEA TAMBIÉN
+            sl_order.status = 'Placed'
             
             # Agregar a órdenes pendientes y historial
             self.orders.append(sl_order)
             self.all_orders_history.append(sl_order)
+            if symbol in self.current_ohlc:
+                self._execute_triggered_orders_current_bar(symbol, only_tp_sl=True)
 
     # def update_market(self, symbol: str, ohlc_content: dict):
         # """Versión ULTRA-OPTIMIZADA con órdenes TP/SL"""
@@ -525,7 +516,7 @@ class _Exchange:
         # # Procesar órdenes pendientes para este símbolo
         # orders_to_execute = []
         # for order in self.orders:
-        #     if order.status in ["Cancelled", "Filled"]:  # Ignorar órdenes canceladas y ejecutadas
+        #     if order.status in ["Cancelled", "Filled"]:
         #         continue
         #     if order.symbol == symbol:
         #         execution_price = self._should_execute_order(order, ohlc_content)
@@ -542,7 +533,6 @@ class _Exchange:
         #     position.update_unrealized_pnl(ohlc_content['Close'][-1])
         #     position.update_max_min_prices(ohlc_content["High"][-1], ohlc_content["Low"][-1])
         #     position.calculate_mae_mfe(cash=self.cash, metric_type=self.mae_mfe_metric_type)
-
     def update_market(self, symbol: str, ohlc_content: dict):
         """Versión ULTRA-OPTIMIZADA con órdenes TP/SL"""
         self.current_close[symbol] = ohlc_content['Close'][-1]
@@ -551,12 +541,28 @@ class _Exchange:
         # Procesar órdenes pendientes para este símbolo
         orders_to_execute = []
         for order in self.orders:
-            if order.status in ["Cancelled", "Filled"]:  # Ignorar órdenes canceladas y ejecutadas
+            if order.status in ["Cancelled", "Filled"]:
                 continue
             if order.symbol == symbol:
                 execution_price = self._should_execute_order(order, ohlc_content)
                 if execution_price is not None:
                     orders_to_execute.append((order, execution_price))
+        
+        # Priorizar cierres "perdedor primero" si hay posición abierta
+        if symbol in self.positions and self.positions[symbol].status == 'Open' and orders_to_execute:
+            position = self.positions[symbol]
+            closers = []
+            others = []
+            for order, execution_price in orders_to_execute:
+                # Un cierre es una orden del lado opuesto a la posición
+                if (position.side == 'Long' and order.side == 'Sell') or \
+                   (position.side == 'Short' and order.side == 'Buy'):
+                    closers.append((order, execution_price))
+                else:
+                    others.append((order, execution_price))
+            if closers:
+                closers.sort(key=lambda x: self._pnl_close_preview(position, x[1]))
+                orders_to_execute = closers + others
         
         # Ejecutar órdenes
         for order, execution_price in orders_to_execute:
@@ -569,40 +575,60 @@ class _Exchange:
             position.update_max_min_prices(ohlc_content["High"][-1], ohlc_content["Low"][-1])
             position.calculate_mae_mfe(cash=self.cash, metric_type=self.mae_mfe_metric_type)
 
-
     def _should_execute_order(self, order: Order, ohlc: dict) -> Optional[float]:
-        """
-        Método auxiliar para determinar si una orden debe ejecutarse basándose en los datos OHLC.
-        
-        Args:
-            order (Order): La orden pendiente que se está evaluando para ejecución
-            ohlc (dict): Diccionario con datos OHLC del período actual
-        
-        Returns:
-            Optional[float]: El precio de ejecución si la orden debe ejecutarse,
-                            None si no se cumplen las condiciones de ejecución
-        """
-        # Evaluación de órdenes límite (Limit orders)
+        """Determina si una orden debe ejecutarse basándose en los datos OHLC"""
         if order.order_type == 'Limit':
-            # Orden de compra límite
             if order.side == 'Buy' and ohlc['Low'][-1] <= order.price:
                 return order.price
-
-            # Orden de venta límite
             elif order.side == 'Sell' and ohlc['High'][-1] >= order.price:
                 return order.price
         
-        # Evaluación de órdenes Stop (Stop orders)
         elif order.order_type == 'Stop':
-            # Orden de compra stop (stop loss para posición short)
             if order.side == 'Buy' and ohlc['High'][-1] >= order.price:
                 return order.price
-            
-            # Orden de venta stop (stop loss para posición long)
             elif order.side == 'Sell' and ohlc['Low'][-1] <= order.price:
                 return order.price
         
         return None
+
+    def _pnl_close_preview(self, position: Position, price: float) -> float:
+        if position.side == 'Long':
+            return (price - position.entry_price) * position.volume
+        else:
+            return (position.entry_price - price) * position.volume
+
+    def _execute_triggered_orders_current_bar(self, symbol: str, only_tp_sl: bool = False, exclude_ids: set = None):
+        ohlc_content = self.current_ohlc.get(symbol)
+        if not ohlc_content:
+            return
+        exclude_ids = exclude_ids or set()
+        orders_to_execute = []
+        for order in list(self.orders):
+            if order.status in ["Cancelled", "Filled"]:
+                continue
+            if order.symbol != symbol:
+                continue
+            if order.id in exclude_ids:
+                continue
+            if only_tp_sl and not order.id.startswith(("TP_", "SL_")):
+                continue
+            execution_price = self._should_execute_order(order, ohlc_content)
+            if execution_price is not None:
+                orders_to_execute.append((order, execution_price))
+        if symbol in self.positions and self.positions[symbol].status == 'Open' and orders_to_execute:
+            position = self.positions[symbol]
+            closers, others = [], []
+            for order, execution_price in orders_to_execute:
+                if (position.side == 'Long' and order.side == 'Sell') or \
+                   (position.side == 'Short' and order.side == 'Buy'):
+                    closers.append((order, execution_price))
+                else:
+                    others.append((order, execution_price))
+            if closers:
+                closers.sort(key=lambda x: self._pnl_close_preview(position, x[1]))
+                orders_to_execute = closers + others
+        for order, execution_price in orders_to_execute:
+            self._execute_order(order, execution_price)
 
     def _check_position_stops(self, symbol: str, ohlc: pd.Series):
         """Verifica y ejecuta stop loss y take profit de la posición"""
@@ -612,7 +638,7 @@ class _Exchange:
         position = self.positions[symbol]
         
         # Verificar take profit levels
-        for i, (tp_price, tp_size) in enumerate(position.take_profit_levels[:]):
+        for i, (tp_price, tp_volume) in enumerate(position.take_profit_levels[:]):
             should_trigger = False
             if position.side == 'Long' and ohlc['High'] >= tp_price:
                 should_trigger = True
@@ -620,15 +646,15 @@ class _Exchange:
                 should_trigger = True
                 
             if should_trigger:
-                self._execute_partial_close(symbol, tp_price, tp_size)
+                self._execute_partial_close(symbol, tp_price, tp_volume)
                 position.take_profit_levels.pop(i)
-                if position.size <= 0:
+                if position.volume <= 0:
                     break
         
         # Verificar stop loss levels
         remaining_levels = []
         
-        for sl_price, sl_size in position.stop_loss_levels:
+        for sl_price, sl_volume in position.stop_loss_levels:
             should_trigger = False
             
             if position.side == 'Long' and ohlc['Low'] <= sl_price:
@@ -637,147 +663,16 @@ class _Exchange:
                 should_trigger = True
                 
             if should_trigger:
-                self._execute_partial_close(symbol, sl_price, sl_size)
-                if position.size <= 0:
+                self._execute_partial_close(symbol, sl_price, sl_volume)
+                if position.volume <= 0:
                     break
             else:
-                remaining_levels.append((sl_price, sl_size))
+                remaining_levels.append((sl_price, sl_volume))
         
         # Update the stop loss levels list
         position.stop_loss_levels = remaining_levels
     
-    # def _execute_partial_close(self, symbol: str, exit_price: float, close_size: float):
-        # """Ejecuta el cierre parcial de una posición"""
-        # if symbol not in self.positions or self.positions[symbol].status != 'Open':
-        #     return
-        
-        # timestamp = self.current_timestamp
-
-        # position: Position = self.positions[symbol]
-        # close_size = min(close_size, position.size)
-        
-        # # Calcular comisión
-        # fee = close_size * exit_price * self.taker_fee
-        
-        # # Calcular PnL
-        # if position.side == 'Long':
-        #     pnl = (exit_price - position.entry_price) * close_size - fee
-        # else:  # Short
-        #     pnl = (position.entry_price - exit_price) * close_size - fee
-        
-        # # Actualizar cash
-        # self.cash += pnl + fee  # El fee ya está descontado del pnl
-        
-        # # Crear trade cerrado
-        # closed_trade = Trade(
-        #     order_id=f"close_{position.id}",
-        #     symbol=symbol,
-        #     size=close_size,
-        #     entry_price=position.entry_price,
-        #     side=position.side,
-        #     commission=fee,
-        #     exit_price=exit_price,
-        #     entry_time=position.opened_at,
-        #     exit_time=timestamp,
-        # )
-
-        # # -- EDIT -- >
-        # # Transferir MAE y MFE desde la posición al trade cerrado
-        # # closed_trade.mae = position.mae
-        # # closed_trade.mfe = position.mfe
-        # closed_trade.max_price = position.max_price
-        # closed_trade.min_price = position.min_price
-        # # < -- EDIT --
-        
-        # self.closed_trades.append(closed_trade)
-        # self.all_trades_history.append(closed_trade)
-        
-        # # Actualizar posición
-        # position.size -= close_size
-        
-        # if position.size <= 0:
-        #     position.close(closed_at=timestamp)
-        #     # Remover de trades activos
-        #     self.trades = [t for t in self.trades if t.symbol != symbol]
-
-    # def _execute_partial_close(self, symbol: str, exit_price: float, close_size: float):
-        # """Ejecuta el cierre parcial de una posición"""
-        # if symbol not in self.positions or self.positions[symbol].status != 'Open':
-        #     return
-        
-        # timestamp = self.current_timestamp
-
-        # position: Position = self.positions[symbol]
-        # close_size = min(close_size, position.size)
-        
-        # # Calcular comisión
-        # fee = close_size * exit_price * self.taker_fee
-        
-        # # Calcular PnL
-        # if position.side == 'Long':
-        #     pnl = (exit_price - position.entry_price) * close_size - fee
-        # else:  # Short
-        #     pnl = (position.entry_price - exit_price) * close_size - fee
-        
-        # # Actualizar cash
-        # self.cash += pnl + fee  # El fee ya está descontado del pnl
-        
-        # # Crear trade cerrado
-        # closed_trade = Trade(
-        #     order_id=f"close_{position.id}",
-        #     symbol=symbol,
-        #     size=close_size,
-        #     entry_price=position.entry_price,
-        #     side=position.side,
-        #     commission=fee,
-        #     exit_price=exit_price,
-        #     entry_time=position.opened_at,
-        #     exit_time=timestamp,
-        # )
-
-        # # -- EDIT -- >
-        # # Transferir MAE y MFE desde la posición al trade cerrado
-        # # closed_trade.mae = position.mae
-        # # closed_trade.mfe = position.mfe
-        # closed_trade.max_price = position.max_price
-        # closed_trade.min_price = position.min_price
-        # # < -- EDIT --
-        
-        # self.closed_trades.append(closed_trade)
-        # self.all_trades_history.append(closed_trade)
-        
-        # # Actualizar posición
-        # position.size -= close_size
-        
-        # if position.size <= 0:
-        #     position.close(closed_at=timestamp)
-        #     # Remover de trades activos
-        #     self.trades = [t for t in self.trades if t.symbol != symbol]
-            
-        #     # MEJORADO: Cancelar todas las órdenes TP/SL pendientes para esta posición
-        #     orders_to_cancel = []
-        #     for order in self.orders:
-        #         if (order.symbol == symbol and 
-        #             order.id.startswith(('TP_', 'SL_')) and 
-        #             order.status == 'Untriggered'):
-        #             orders_to_cancel.append(order)
-            
-        #     # Cancelar las órdenes encontradas con status apropiado
-        #     for order in orders_to_cancel:
-        #         # Cambiar status a "Cancelled" en lugar de mantener "Untriggered"
-        #         order.status = 'CancelledByTpSlTsClear'
-        #         # Opcional: agregar timestamp de cancelación
-        #         order.executed_at = timestamp  # Reutilizamos este campo para marcar cuándo se canceló
-                
-        #         # Remover de órdenes pendientes
-        #         if order in self.orders:
-        #             self.orders.remove(order)
-                
-        #         # Asegurar que esté en el historial (si no está ya)
-        #         if not any(hist_order.id == order.id for hist_order in self.all_orders_history):
-        #             self.all_orders_history.append(order)
-
-    def _execute_partial_close(self, symbol: str, exit_price: float, close_size: float, closing_order_id: str = None):
+    def _execute_partial_close(self, symbol: str, exit_price: float, close_volume: float, closing_order_id: str = None):
         """Ejecuta el cierre parcial de una posición"""
         if symbol not in self.positions or self.positions[symbol].status != 'Open':
             return
@@ -785,16 +680,16 @@ class _Exchange:
         timestamp = self.current_timestamp
 
         position: Position = self.positions[symbol]
-        close_size = min(close_size, position.size)
+        close_volume = min(close_volume, position.volume)
         
         # Calcular comisión
-        fee = close_size * exit_price * self.taker_fee
+        fee = close_volume * exit_price * self.taker_fee
         
         # Calcular PnL
         if position.side == 'Long':
-            pnl = (exit_price - position.entry_price) * close_size - fee
+            pnl = (exit_price - position.entry_price) * close_volume - fee
         else:  # Short
-            pnl = (position.entry_price - exit_price) * close_size - fee
+            pnl = (position.entry_price - exit_price) * close_volume - fee
         
         # Actualizar cash
         self.cash += pnl + fee  # El fee ya está descontado del pnl
@@ -805,7 +700,7 @@ class _Exchange:
         closed_trade = Trade(
             order_id=order_id_to_use,  # ← CAMBIO AQUÍ
             symbol=symbol,
-            size=close_size,
+            volume=close_volume,
             entry_price=position.entry_price,
             side=position.side,
             commission=fee,
@@ -822,9 +717,9 @@ class _Exchange:
         self.all_trades_history.append(closed_trade)
         
         # Actualizar posición
-        position.size -= close_size
+        position.volume -= close_volume
         
-        if position.size <= 0:
+        if position.volume <= 0:
             position.close(closed_at=timestamp)
             # Remover de trades activos
             self.trades = [t for t in self.trades if t.symbol != symbol]
@@ -854,8 +749,8 @@ class _Exchange:
 
     def set_trading_stop(self, symbol: str, tp_price: Optional[float] = None, 
                         sl_price: Optional[float] = None,
-                        tp_size: Optional[float] = None,
-                        sl_size: Optional[float] = None):
+                        tp_volume: Optional[float] = None,
+                        sl_volume: Optional[float] = None):
         """
         Establece stop loss y take profit como órdenes internas
         
@@ -863,8 +758,8 @@ class _Exchange:
             symbol: símbolo del activo
             tp_price: precio de take profit
             sl_price: precio de stop loss
-            tp_size: tamaño para take profit (None = toda la posición)
-            sl_size: tamaño para stop loss (None = toda la posición)
+            tp_volume: tamaño para take profit (None = toda la posición)
+            sl_volume: tamaño para stop loss (None = toda la posición)
         
         Returns:
             list: Lista de órdenes creadas
@@ -878,8 +773,8 @@ class _Exchange:
         created_orders = []
         
         if tp_price is not None:
-            size = tp_size if tp_size is not None else position.size
-            size = min(size, position.size)
+            volume = tp_volume if tp_volume is not None else position.volume
+            volume = min(volume, position.volume)
             
             # Determinar el lado de la orden TP (opuesto a la posición)
             tp_side = 'Sell' if position.side == 'Long' else 'Buy'
@@ -887,31 +782,35 @@ class _Exchange:
             # Crear orden TP como orden límite
             tp_order = Order(
                 symbol=symbol,
-                size=size,
+                volume=volume,
                 price=tp_price,
                 order_type='Limit',
                 side=tp_side,
                 created_at=self.current_timestamp
             )
             tp_order.id = f"TP_{position.id}_{len(created_orders)}"
-            tp_order.status = 'Untriggered'  # ← AGREGAR ESTA LÍNEA
+            tp_order.status = 'Untriggered'  
             
             # Agregar a órdenes pendientes y historial
             self.orders.append(tp_order)
             self.all_orders_history.append(tp_order)
+            if symbol in self.current_ohlc:
+                exec_price = self._should_execute_order(tp_order, self.current_ohlc[symbol])
+                if exec_price is not None:
+                    self._execute_order(tp_order, exec_price)
             created_orders.append({
                 'orderId': tp_order.id,
                 'symbol': tp_order.symbol,
                 'side': tp_order.side,
                 'orderType': tp_order.order_type,
-                'qty': str(tp_order.size),
+                'qty': str(tp_order.volume),
                 'price': str(tp_order.price),
                 'orderStatus': tp_order.status
             })
             
         if sl_price is not None:
-            size = sl_size if sl_size is not None else position.size
-            size = min(size, position.size)
+            volume = sl_volume if sl_volume is not None else position.volume
+            volume = min(volume, position.volume)
             
             # Determinar el lado de la orden SL (opuesto a la posición)
             sl_side = 'Sell' if position.side == 'Long' else 'Buy'
@@ -919,7 +818,7 @@ class _Exchange:
             # Crear orden SL como orden stop
             sl_order = Order(
                 symbol=symbol,
-                size=size,
+                volume=volume,
                 price=sl_price,
                 order_type='Stop',
                 side=sl_side,
@@ -931,16 +830,22 @@ class _Exchange:
             # Agregar a órdenes pendientes y historial
             self.orders.append(sl_order)
             self.all_orders_history.append(sl_order)
+            if symbol in self.current_ohlc:
+                exec_price = self._should_execute_order(sl_order, self.current_ohlc[symbol])
+                if exec_price is not None:
+                    self._execute_order(sl_order, exec_price)
             created_orders.append({
                 'orderId': sl_order.id,
                 'symbol': sl_order.symbol,
                 'side': sl_order.side,
                 'orderType': sl_order.order_type,
-                'qty': str(sl_order.size),
+                'qty': str(sl_order.volume),
                 'price': str(sl_order.price),
                 'orderStatus': sl_order.status
             })
         
+        if symbol in self.current_ohlc:
+            self._execute_triggered_orders_current_bar(symbol, only_tp_sl=True)
         return created_orders
 
     def set_symbol_leverage(self, symbol: str, leverage: int):
@@ -959,7 +864,7 @@ class _Exchange:
             return
             
         position = self.positions[symbol]
-        self._execute_partial_close(symbol, exit_price, position.size, closing_order_id)
+        self._execute_partial_close(symbol, exit_price, position.volume, closing_order_id)
 
     def close_position(self, symbol: str):
         """Cierra una posición al precio de mercado actual"""
@@ -1073,31 +978,302 @@ class _Exchange:
     
     def __str__(self):
         return self.__repr__()
+# fixed
+# class _DataProviderBT:
+    # """
+    #     Versión completa y mejorada de _DataProviderBT con el bug del indice corregido.
+        
+    #     Mejoras incluidas:
+    #     - Bug del índice corregido (usa idx en lugar de idx-1)
+    #     - Cache completo para optimizacion
+    #     - Soporte completo para resampling de timeframes
+    #     - Validacion robusta de datos
+    #     - Manejo de multiples símbolos
+    #     - Compatibilidad completa con el framework original
+    # """
+    
+    # def __init__(self, packet, symbol: str = None):
+    #     """
+    #     Inicializa el DataProvider con soporte para dict o DataOHLC directo.
+        
+    #     Args:
+    #         packet: Dict[str, DataOHLC] o DataOHLC directo
+    #         symbol: Símbolo principal (opcional para compatibilidad)
+    #     """
+    #     self.__cache = {}  # Cache para optimización: "request:DataOHLC:BTCUSDT:5min:1"
+        
+    #     # Manejar tanto dict como DataOHLC directo
+    #     if isinstance(packet, dict):
+    #         # packet es {"BTCUSDT": data_ohlc}
+    #         self.__packet = packet
+    #         self.__symbols = list(packet.keys())
+    #         self.__len = len(packet[list(packet.keys())[0]])
+    #         self.symbol = symbol or self.__symbols[0]
+    #     else:
+    #         # packet es data_ohlc directamente
+    #         self.symbol = symbol or "BTCUSDT"
+    #         self.__packet = {self.symbol: packet}
+    #         self.__symbols = [self.symbol]
+    #         self.__len = len(packet)
+        
+    #     # Validar que todos los símbolos tengan la misma longitud
+    #     self._validate_packet(self.__packet)
 
+    # @property
+    # def packet(self) -> Dict:
+    #     """Retorna el packet de datos."""
+    #     return self.__packet
+
+    # @property 
+    # def symbols(self) -> List[str]:
+    #     """Retorna la lista de símbolos disponibles."""
+    #     return self.__symbols
+
+    # def request(self, idx: int, symbol: str, timeframe: str = None, limit: int = None):
+    #     """
+    #     Solicita datos OHLC para un índice específico con soporte completo para resampling.
+        
+    #     BUG CORREGIDO: Usa idx en lugar de idx-1
+        
+    #     Args:
+    #         idx: Índice de la barra actual (CORREGIDO: usa idx directamente)
+    #         symbol: Símbolo a consultar
+    #         timeframe: Timeframe objetivo (opcional, usa el original si no se especifica)
+    #         limit: Límite de barras a retornar (default: 100)
+            
+    #     Returns:
+    #         DataOHLC: Datos resampleados hasta el índice especificado
+    #     """
+    #     if limit is None:
+    #         limit = 100
+
+    #     # Validar que el símbolo existe
+    #     if symbol not in self.__packet:
+    #         raise ValueError(f"Símbolo {symbol} no encontrado en el packet")
+            
+    #     # Validar que el índice es válido
+    #     if idx >= self.__len:
+    #         raise ValueError(f"Índice {idx} fuera de rango (máximo: {self.__len-1})")
+
+    #     # DATOS ORIGINALES
+    #     origin_data = self.__packet[symbol]
+    #     orig_content_copy = origin_data.content.copy()
+    #     orig_tf = origin_data.timeframe
+    #     orig_minutes_tf = origin_data.minutes
+
+    #     if timeframe is None:
+    #         timeframe = orig_tf
+
+    #     # SISTEMA DE CACHE OPTIMIZADO
+    #     __cache_key__resample = f"request:DataOHLC:{symbol}:{timeframe}:{orig_minutes_tf}"
+    #     __cache_key__orig_idx_vals = f"request:array:{symbol}:{orig_tf}:{orig_minutes_tf}"
+        
+    #     if __cache_key__resample not in self.__cache:
+    #         self.__cache[__cache_key__resample] = origin_data.resample(timeframe)
+    #     if __cache_key__orig_idx_vals not in self.__cache:
+    #         self.__cache[__cache_key__orig_idx_vals] = origin_data.index.astype("int64")
+
+    #     # DATOS RESAMPLEADOS
+    #     resamp_data = self.__cache[__cache_key__resample]
+    #     resample_minutes_tf = resamp_data.minutes
+    #     orig_index_ms = self.__cache[__cache_key__orig_idx_vals]
+
+    #     # Importar función de conteo (ya importada al inicio del archivo)
+    #     try:
+    #         group_resample_bars = count_available_resample_bars_nb(
+    #             orig_index_ms, idx, orig_minutes_tf, resample_minutes_tf
+    #         )
+    #     except (ImportError, Exception):
+    #         # Fallback si no está disponible la función optimizada o hay algún error
+    #         group_resample_bars = min(idx + 1, len(resamp_data))
+
+    #     effective_limit = min(limit, group_resample_bars)
+    #     if effective_limit == 0:
+    #         raise ValueError("No hay datos suficientes para el índice solicitado")
+            
+    #     start_idx = max(0, group_resample_bars - effective_limit)
+    #     filtered_data = resamp_data[start_idx:group_resample_bars]
+
+    #     #######################################
+    #     # 🔥 CORRECCIÓN DEL BUG PRINCIPAL 🔥
+    #     # ANTES (BUGGY): last_ms = orig_index_ms[idx-1]  
+    #     # AHORA (FIXED): last_ms = orig_index_ms[idx]
+    #     #######################################
+    #     last_ms = orig_index_ms[idx]  # ✅ CORREGIDO: usa idx directamente
+
+    #     # MODIFICAR LAS BARRAS NO CERRADAS
+    #     MS_POR_MINUTO = 60_000
+    #     last_minute = (last_ms // MS_POR_MINUTO) % 60
+    #     rows_to_take = ((last_minute % resample_minutes_tf) // orig_minutes_tf) + 1
+
+    #     if rows_to_take > idx + 1:  # +1 porque idx es 0-indexed
+    #         rows_to_take = idx + 1
+            
+    #     slice_start = max(0, idx + 1 - rows_to_take)  # Ajustado para usar idx
+    #     slice_rows_to_take = slice(slice_start, idx + 1)
+
+    #     # CREAR COPIA PROFUNDA DEL CONTENIDO ANTES DE MODIFICAR
+    #     filtered_data_content = filtered_data.content.copy()
+        
+    #     # Crear copias de los arrays numpy también
+    #     for key in filtered_data_content:
+    #         filtered_data_content[key] = filtered_data_content[key].copy()
+
+    #     # ACTUALIZAR LA ÚLTIMA BARRA CON DATOS CORRECTOS
+    #     # Verificar que el diccionario tenga claves Y que los arrays tengan elementos
+    #     if len(filtered_data_content) > 0 and len(filtered_data_content.get("Open", [])) > 0:
+    #         # Verificar que slice_start esté dentro del rango
+    #         if slice_start < len(orig_content_copy["Open"]):
+    #             filtered_data_content["Open"][-1] = orig_content_copy["Open"][slice_start]
+    #             filtered_data_content["High"][-1] = np.max(orig_content_copy["High"][slice_rows_to_take])
+    #             filtered_data_content["Low"][-1] = np.min(orig_content_copy["Low"][slice_rows_to_take])
+    #             filtered_data_content["Close"][-1] = orig_content_copy["Close"][idx]  # ✅ CORREGIDO
+    #             filtered_data_content["Volume"][-1] = np.sum(orig_content_copy["Volume"][slice_rows_to_take])
+                
+    #             # Manejar Turnover si existe
+    #             if "Turnover" in filtered_data_content:
+    #                 filtered_data_content["Turnover"][-1] = np.sum(orig_content_copy["Turnover"][slice_rows_to_take])
+    #     elif len(filtered_data_content) == 0 or len(filtered_data_content.get("Open", [])) == 0:
+    #         # Si no hay datos suficientes, crear una barra mínima con los datos disponibles
+    #         if idx < len(orig_content_copy["Open"]):
+    #             filtered_data_content = {
+    #                 "datetime": np.array([orig_index_ms[idx]], dtype='datetime64[ms]'),
+    #                 "Open": np.array([orig_content_copy["Open"][idx]]),
+    #                 "High": np.array([orig_content_copy["High"][idx]]),
+    #                 "Low": np.array([orig_content_copy["Low"][idx]]),
+    #                 "Close": np.array([orig_content_copy["Close"][idx]]),
+    #                 "Volume": np.array([orig_content_copy["Volume"][idx]])
+    #             }
+    #             if "Turnover" in orig_content_copy:
+    #                 filtered_data_content["Turnover"] = np.array([orig_content_copy["Turnover"][idx]])
+    #         else:
+    #             # Si idx está fuera de rango, crear arrays vacíos válidos
+    #             filtered_data_content = {
+    #                 "datetime": np.array([], dtype='datetime64[ms]'),
+    #                 "Open": np.array([]),
+    #                 "High": np.array([]),
+    #                 "Low": np.array([]),
+    #                 "Close": np.array([]),
+    #                 "Volume": np.array([])
+    #             }
+    #             if "Turnover" in orig_content_copy:
+    #                 filtered_data_content["Turnover"] = np.array([])
+
+    #     # ACTUALIZAR EL OBJETO FILTERED_DATA
+    #     filtered_data.update(content=filtered_data_content)
+
+    #     return filtered_data
+
+    # def _validate_packet(self, data: dict) -> None:
+    #     """
+    #     Valida que todos los símbolos en el packet tengan la misma longitud.
+        
+    #     Args:
+    #         data: Diccionario de símbolos y sus datos OHLC
+            
+    #     Raises:
+    #         AssertionError: Si los símbolos tienen longitudes diferentes
+    #     """
+    #     if not data:
+    #         raise ValueError("El packet no puede estar vacío")
+            
+    #     lengths = [len(data[symbol]) for symbol in data.keys()]
+    #     if not all(length == lengths[0] for length in lengths):
+    #         raise ValueError("Todos los símbolos deben tener la misma longitud de datos")
+            
+    #     for symbol in data.keys():
+    #         if not hasattr(data[symbol], 'content'):
+    #             raise ValueError(f"El símbolo {symbol} debe ser un objeto DataOHLC válido")
+
+    # def clear_cache(self):
+    #     """Limpia el cache para liberar memoria."""
+    #     self.__cache.clear()
+        
+    # def get_cache_info(self) -> dict:
+    #     """Retorna información sobre el estado del cache."""
+    #     return {
+    #         "cache_size": len(self.__cache),
+    #         "cache_keys": list(self.__cache.keys())
+    #     }
+
+# fixed v2
 class _DataProviderBT:
-    __slots__ = ["__len", "__packet", "__cache", "__symbols"]
-    # posible_resample_freqs=["1min", "3min", "5min", "15min", "30min", "1h", "2h", "4h", "6h", "8h", "12h", "1D", "1W", "1ME", "1YE"]
-
-    def __init__(self, packet: Dict[str, DataOHLC]):
-        self.__cache = {} # :DataOHLC:BTCUSDT:5min:0:100
-        self.__len = len(packet[list(packet.keys())[0]])
-        self._validate_packet(packet) 
-        self.__packet = packet# packet: {"BTCUSDT": DataOHLC}}
-        self.__symbols = list(packet.keys())
+    """
+        Versión completa y mejorada de _DataProviderBT con el bug del indice corregido.
+        
+        Mejoras incluidas:
+        - Bug del índice corregido (usa idx en lugar de idx-1)
+        - Cache completo para optimizacion
+        - Soporte completo para resampling de timeframes
+        - Validacion robusta de datos
+        - Manejo de multiples símbolos
+        - Compatibilidad completa con el framework original
+    """
+    
+    def __init__(self, packet, symbol: str = None):
+        """
+        Inicializa el DataProvider con soporte para dict o DataOHLC directo.
+        
+        Args:
+            packet: Dict[str, DataOHLC] o DataOHLC directo
+            symbol: Símbolo principal (opcional para compatibilidad)
+        """
+        self.__cache = {}  # Cache para optimización: "request:DataOHLC:BTCUSDT:5min:1"
+        
+        # Manejar tanto dict como DataOHLC directo
+        if isinstance(packet, dict):
+            # packet es {"BTCUSDT": data_ohlc}
+            self.__packet = packet
+            self.__symbols = list(packet.keys())
+            self.__len = len(packet[list(packet.keys())[0]])
+            self.symbol = symbol or self.__symbols[0]
+        else:
+            # packet es data_ohlc directamente
+            self.symbol = symbol or "BTCUSDT"
+            self.__packet = {self.symbol: packet}
+            self.__symbols = [self.symbol]
+            self.__len = len(packet)
+        
+        # Validar que todos los símbolos tengan la misma longitud
+        self._validate_packet(self.__packet)
 
     @property
-    def packet(self) -> Dict[str, DataOHLC]:
+    def packet(self) -> Dict:
+        """Retorna el packet de datos."""
         return self.__packet
 
-    @property
+    @property 
     def symbols(self) -> List[str]:
+        """Retorna la lista de símbolos disponibles."""
         return self.__symbols
 
-    def request(self, idx: int, symbol, timeframe: str = None, limit: int = None) -> Dict[str, DataOHLC]:
+    def request(self, idx: int, symbol: str, timeframe: str = None, limit: int = None):
+        """
+        Solicita datos OHLC para un índice específico con soporte completo para resampling.
+        
+        BUG CORREGIDO: Usa idx en lugar de idx-1
+        
+        Args:
+            idx: Índice de la barra actual (CORREGIDO: usa idx directamente)
+            symbol: Símbolo a consultar
+            timeframe: Timeframe objetivo (opcional, usa el original si no se especifica)
+            limit: Límite de barras a retornar (default: 100)
+            
+        Returns:
+            DataOHLC: Datos resampleados hasta el índice especificado
+        """
         if limit is None:
             limit = 100
 
-        # ORIGIN DATA
+        # Validar que el símbolo existe
+        if symbol not in self.__packet:
+            raise ValueError(f"Símbolo {symbol} no encontrado en el packet")
+            
+        # Validar que el índice es válido
+        if idx >= self.__len:
+            raise ValueError(f"Índice {idx} fuera de rango (máximo: {self.__len-1})")
+
+        # DATOS ORIGINALES
         origin_data = self.__packet[symbol]
         orig_content_copy = origin_data.content.copy()
         orig_tf = origin_data.timeframe
@@ -1106,64 +1282,771 @@ class _DataProviderBT:
         if timeframe is None:
             timeframe = orig_tf
 
-        # Cache save
+        # SISTEMA DE CACHE OPTIMIZADO
         __cache_key__resample = f"request:DataOHLC:{symbol}:{timeframe}:{orig_minutes_tf}"
         __cache_key__orig_idx_vals = f"request:array:{symbol}:{orig_tf}:{orig_minutes_tf}"
+        
         if __cache_key__resample not in self.__cache:
-            self.__cache[__cache_key__resample] = origin_data.resample(timeframe)  # ✅ Se ejecuta una sola vez, como antes
+            self.__cache[__cache_key__resample] = origin_data.resample(timeframe)
         if __cache_key__orig_idx_vals not in self.__cache:
-            self.__cache[__cache_key__orig_idx_vals] = origin_data.index.astype("int64") 
+            self.__cache[__cache_key__orig_idx_vals] =  origin_data.nbars.astype(np.int64)  # origin_data.index.astype("int64") origin_data.nbars 
 
-        # RESAMPLE DATA
+        # DATOS RESAMPLEADOS
         resamp_data = self.__cache[__cache_key__resample]
-        
-        resample_minutes_tf = resamp_data.minutes 
-        
+        resample_minutes_tf = resamp_data.minutes
         orig_index_ms = self.__cache[__cache_key__orig_idx_vals]
-        
-        group_resample_bars = count_available_resample_bars_nb(
-            orig_index_ms, idx, orig_minutes_tf, resample_minutes_tf
-        )
+
+        # Usar función de conteo optimizada para nbars
+        try:
+            group_resample_bars = count_available_resample_bars_nbars(
+                orig_index_ms, idx, orig_minutes_tf, resample_minutes_tf
+            )
+        except (ImportError, Exception):
+            # Fallback si no está disponible la función optimizada o hay algún error
+            group_resample_bars = min(idx + 1, len(resamp_data))
 
         effective_limit = min(limit, group_resample_bars)
         if effective_limit == 0:
-            raise ValueError("No hay datos suficientes")
+            raise ValueError("No hay datos suficientes para el índice solicitado")
+            
         start_idx = max(0, group_resample_bars - effective_limit)
         filtered_data = resamp_data[start_idx:group_resample_bars]
 
         #######################################
-        # MODIFICAR LAS BARRAS NO CERRADAS (sin cambios)
-        last_ms = orig_index_ms[idx-1]
+        # 🔥 CORRECCIÓN DEL BUG PRINCIPAL 🔥
+        # ANTES (BUGGY): last_ms = orig_index_ms[idx-1]  
+        # AHORA (FIXED): last_ms = orig_index_ms[idx]
+        #######################################
+        last_ms = orig_index_ms[idx]  # ✅ CORREGIDO: usa idx directamente
 
+        # MODIFICAR LAS BARRAS NO CERRADAS
         MS_POR_MINUTO = 60_000
         last_minute = (last_ms // MS_POR_MINUTO) % 60
-        rows_to_take = ((last_minute % resample_minutes_tf) // orig_minutes_tf) + 1 # anterior: (last_minute % resample_interval) + 1
+        rows_to_take = ((last_minute % resample_minutes_tf) // orig_minutes_tf) + 1
 
-        if rows_to_take > idx:
-            rows_to_take = idx
-        slice_rows_to_take = slice(idx-rows_to_take, idx)
+        if rows_to_take > idx + 1:  # +1 porque idx es 0-indexed
+            rows_to_take = idx + 1
+            
+        slice_start = max(0, idx + 1 - rows_to_take)  # Ajustado para usar idx
+        slice_rows_to_take = slice(slice_start, idx + 1)
 
-        # CREAR UNA COPIA PROFUNDA DEL CONTENIDO ANTES DE MODIFICAR
-        filtered_data_content = filtered_data.content.copy()  # ← CAMBIO AQUÍ
+        # CREAR COPIA PROFUNDA DEL CONTENIDO ANTES DE MODIFICAR
+        filtered_data_content = filtered_data.content.copy()
         
         # Crear copias de los arrays numpy también
         for key in filtered_data_content:
             filtered_data_content[key] = filtered_data_content[key].copy()
-        
-        filtered_data_content["Open"][-1] = orig_content_copy["Open"][idx-rows_to_take]
-        filtered_data_content["High"][-1] = np.max(orig_content_copy["High"][slice_rows_to_take])
-        filtered_data_content["Low"][-1] = np.min(orig_content_copy["Low"][slice_rows_to_take])
-        filtered_data_content["Close"][-1] = orig_content_copy["Close"][idx-1]
-        filtered_data_content["Volume"][-1] = np.sum(orig_content_copy["Volume"][slice_rows_to_take])
-        filtered_data_content["Turnover"][-1] = np.sum(orig_content_copy["Turnover"][slice_rows_to_take])
-        
+
+        # ACTUALIZAR LA ÚLTIMA BARRA CON DATOS CORRECTOS
+        # Verificar que el diccionario tenga claves Y que los arrays tengan elementos
+        if len(filtered_data_content) > 0 and len(filtered_data_content.get("Open", [])) > 0:
+            # Verificar que slice_start esté dentro del rango
+            if slice_start < len(orig_content_copy["Open"]):
+                filtered_data_content["Open"][-1] = orig_content_copy["Open"][slice_start]
+                filtered_data_content["High"][-1] = np.max(orig_content_copy["High"][slice_rows_to_take])
+                filtered_data_content["Low"][-1] = np.min(orig_content_copy["Low"][slice_rows_to_take])
+                filtered_data_content["Close"][-1] = orig_content_copy["Close"][idx]  # ✅ CORREGIDO
+                filtered_data_content["Volume"][-1] = np.sum(orig_content_copy["Volume"][slice_rows_to_take])
+                
+                # Manejar Turnover si existe
+                if "Turnover" in filtered_data_content:
+                    filtered_data_content["Turnover"][-1] = np.sum(orig_content_copy["Turnover"][slice_rows_to_take])
+        elif len(filtered_data_content) == 0 or len(filtered_data_content.get("Open", [])) == 0:
+            # Si no hay datos suficientes, crear una barra mínima con los datos disponibles
+            if idx < len(orig_content_copy["Open"]):
+                filtered_data_content = {
+                    "datetime": np.array([orig_index_ms[idx]], dtype='datetime64[ms]'),
+                    "Open": np.array([orig_content_copy["Open"][idx]]),
+                    "High": np.array([orig_content_copy["High"][idx]]),
+                    "Low": np.array([orig_content_copy["Low"][idx]]),
+                    "Close": np.array([orig_content_copy["Close"][idx]]),
+                    "Volume": np.array([orig_content_copy["Volume"][idx]])
+                }
+                if "Turnover" in orig_content_copy:
+                    filtered_data_content["Turnover"] = np.array([orig_content_copy["Turnover"][idx]])
+            else:
+                # Si idx está fuera de rango, crear arrays vacíos válidos
+                filtered_data_content = {
+                    "datetime": np.array([], dtype='datetime64[ms]'),
+                    "Open": np.array([]),
+                    "High": np.array([]),
+                    "Low": np.array([]),
+                    "Close": np.array([]),
+                    "Volume": np.array([])
+                }
+                if "Turnover" in orig_content_copy:
+                    filtered_data_content["Turnover"] = np.array([])
+
+        # ACTUALIZAR EL OBJETO FILTERED_DATA
         filtered_data.update(content=filtered_data_content)
 
         return filtered_data
 
     def _validate_packet(self, data: dict) -> None:
+        """
+        Valida que todos los símbolos en el packet tengan la misma longitud.
+        
+        Args:
+            data: Diccionario de símbolos y sus datos OHLC
+            
+        Raises:
+            AssertionError: Si los símbolos tienen longitudes diferentes
+        """
+        if not data:
+            raise ValueError("El packet no puede estar vacío")
+            
+        lengths = [len(data[symbol]) for symbol in data.keys()]
+        if not all(length == lengths[0] for length in lengths):
+            raise ValueError("Todos los símbolos deben tener la misma longitud de datos")
+            
         for symbol in data.keys():
-            assert len(data[symbol]) == self.__len, f"Symbol {symbol} has different length"
+            if not hasattr(data[symbol], 'content'):
+                raise ValueError(f"El símbolo {symbol} debe ser un objeto DataOHLC válido")
+
+    def clear_cache(self):
+        """Limpia el cache para liberar memoria."""
+        self.__cache.clear()
+        
+    def get_cache_info(self) -> dict:
+        """Retorna información sobre el estado del cache."""
+        return {
+            "cache_size": len(self.__cache),
+            "cache_keys": list(self.__cache.keys())
+        }
+
+class _BackTestSesh:
+    """Simulador de sesión para backtesting compatible con MT5Sesh"""
+    
+    def __init__(self, packet: Dict[str, DataOHLC], 
+                 cash: float = 100_000, 
+                 maker_fee: float = 0.000, 
+                 taker_fee: float = 0.000,
+                 margin: float = 0.01,  # ← NUEVO: margin por defecto = 1/100
+                 margin_mode: str = 'ISOLATED_MARGIN', 
+                 mae_mfe_metric_type='ROI',
+                 base_coin: str = "USDT", 
+                 tz: str = "UTC", 
+                 warmup_period: int = 0):
+        
+        self.info = False
+        
+        # Soporte para múltiples símbolos
+        if isinstance(packet, dict):
+            self._main_symbol = list(packet.keys())[0]
+            self.symbols = list(packet.keys())
+            lengths = [len(d) for d in packet.values()]
+            if len(set(lengths)) > 1:
+                raise ValueError(f"Todos los datasets deben tener el mismo tamaño. Encontrados: {lengths}") if self.info else None
+            self.data_length = lengths[0]
+            self.main_symbol = self.symbols[0]
+            print(f"BackTestSesh multi-símbolo configurada: {self.symbols} | {self.data_length} barras | Cash inicial: {cash}") if self.info else None
+        else:
+            self._main_symbol = "BTCUSD"
+            self.multi_data = {"BTCUSD": packet}
+            self.symbols = ["BTCUSD"]
+            self.data_length = len(packet)
+            self.main_symbol = "BTCUSD"
+            print(f"BackTestSesh configurada: Datos desde {packet.index[0]} hasta {packet.index[-1]} | Cash inicial: {cash}") if self.info else None
+        
+        # Configuración del warmup
+        self.warmup_period = max(0, warmup_period)
+        self.warmup_completed = False
+        self.current_index = self.warmup_period
+        
+        if self.warmup_period > 0:
+            print(f"Período de warmup configurado: {self.warmup_period} barras") if self.info else None
+
+        self._shown_warnings = set() 
+        self.current_bars = {}
+        self._tz = tz 
+        self._base_coin = base_coin 
+        self._category = "linear" 
+        self._account_type = "UNIFIED" 
+        self.indicator_blueprints = {} 
+
+        self.data_provider = _DataProviderBT(packet=packet, symbol=self._main_symbol)
+
+        self.broker = _Exchange(
+            cash=cash, 
+            maker_fee=maker_fee, 
+            taker_fee=taker_fee, 
+            margin=margin,  # ← PASAR el margin aquí
+            margin_mode=margin_mode, 
+            mae_mfe_metric_type=mae_mfe_metric_type
+        )
+
+        self._equity_curve = np.full(self.data_length, np.nan)
+
+    def next(self):
+        """Avanza al siguiente bar"""
+        if self.current_index >= self.data_length:
+            return False
+        
+        if not self.warmup_completed and self.current_index >= self.warmup_period:
+            self.warmup_completed = True
+        
+        current_timestamp = self.data_provider.packet[self.main_symbol].index[self.current_index]
+        self.broker.current_timestamp = current_timestamp
+
+        idx = self.current_index
+        for symbol in self.data_provider.symbols:            
+            filtered_content_dict = self.data_provider.request(idx=idx, symbol=symbol, limit=1).content
+            self.broker.update_market(symbol, filtered_content_dict)
+
+        self._equity_curve[self.current_index] = self.broker.total_equity
+        
+        self.current_index += 1
+        return True
+
+    def reset(self):
+        """Reinicia el backtest"""
+        self.current_index = self.warmup_period
+        self.warmup_completed = False
+        self.current_bars = {}
+        self._shown_warnings.clear()
+        
+        initial_cash = self.broker.initial_cash
+        self.broker = _Exchange(
+            cash=initial_cash,
+            maker_fee=self.broker.maker_fee,
+            taker_fee=self.broker.taker_fee,
+            margin=self.broker.margin,
+            margin_mode=self.broker.margin_mode,
+            mae_mfe_metric_type=self.broker.mae_mfe_metric_type
+        )
+
+    def _validate_symbol(self, symbol: str) -> str:
+        """Valida que el símbolo esté disponible"""
+        symbol = symbol.upper()
+        if symbol not in self.symbols:
+            raise ValueError(f"Símbolo {symbol} no disponible. Símbolos disponibles: {self.symbols}")
+        return symbol
+
+    # Propiedades
+    @property
+    def time_zone(self):
+        return self._tz
+    
+    @property
+    def equity(self):
+        return self.broker.total_equity
+    
+    @property
+    def equity_curve(self):
+        main_data = self.data_provider.packet[self.main_symbol]
+        return pd.Series(self._equity_curve, index=main_data.df.index, name='Equity')
+
+    @property 
+    def now(self) -> pd.Timestamp:
+        # Ajustar índice para evitar out-of-bounds
+        idx = max(0, min(self.current_index - 1, self.data_length - 1))
+        numpy_datetime = self.data_provider.request(idx=idx, symbol=self.main_symbol, limit=1).index[-1]
+        return numpy_datetime.astype("M8[ms]").astype("O")
+
+    @property
+    async def total_equity(self):
+        return self.broker.total_equity    
+
+    """ DATA """
+    async def get_kline(self, symbol: str, timeframe: str = "1D", start: str = None, 
+                    end: str = None, limit: int = None, category: str = "linear") -> list:
+        # Ajustar índice para evitar out-of-bounds
+        idx = max(0, min(self.current_index - 1, self.data_length - 1))
+        return self.data_provider.request(idx=idx, symbol=symbol, timeframe=timeframe, limit=limit).klines 
+
+    async def get_data(self, symbol: str, timeframe: str, start: str = None, end: str = None, 
+                    limit: int = None, tz: str = None, category: str = "linear") -> DataOHLC:
+        # Ajustar índice para evitar out-of-bounds
+        idx = max(0, min(self.current_index - 1, self.data_length - 1))
+        return self.data_provider.request(idx=idx, symbol=symbol, timeframe=timeframe, limit=limit)
+
+    async def get_last_price(self, symbol: str) -> float:
+        # Usar el índice actual válido (current_index - 1) ya que current_index se incrementa después de procesar
+        current_idx = max(0, min(self.current_index - 1, self.data_length - 1))
+        return self.data_provider.request(idx=current_idx, symbol=symbol, limit=1).Close[-1]
+ 
+    async def get_time(self, tz: str = None) -> pd.Timestamp:
+        # Usar el índice actual válido (current_index - 1) ya que current_index se incrementa después de procesar
+        current_idx = max(0, min(self.current_index - 1, self.data_length - 1))
+        numpy_datetime = self.data_provider.request(idx=current_idx, symbol=self.main_symbol, limit=1).index[-1]
+        return numpy_datetime.astype("M8[ms]").astype("O")
+
+    """ CONFIGURATION """
+    
+    async def set_time_zone(self, tz: str):
+        pass
+
+    async def set_leverage(self, symbol, leverage: int):
+        symbol = self._validate_symbol(symbol)
+        assert leverage > 0, "El valor de leverage debe ser mayor que 0."
+        
+        if not hasattr(self, '_leverages'):
+            self._leverages = {}
+        
+        current_leverage = self._leverages.get(symbol, 1)
+        if current_leverage == leverage:
+            print(f"Nivel de apalancamiento para {symbol} ya establecido en {leverage}.") if self.info else None
+            return
+        
+        self._leverages[symbol] = leverage
+        self.broker.set_symbol_leverage(symbol, leverage)
+        print(f"Nivel de apalancamiento para {symbol} establecido en {leverage}.") if self.info else None
+
+    # async def set_margin_mode(self, margin_mode: str = "ISOLATED_MARGIN"):
+        # valid_modes = ["ISOLATED_MARGIN", "REGULAR_MARGIN", "PORTFOLIO_MARGIN"]
+        # if margin_mode.upper() not in valid_modes:
+        #     raise ValueError(f"Modo de margen inválido. Opciones válidas: {valid_modes}")
+        # self._margin_mode = margin_mode.upper()
+        # print(f"Modo de margen simulado establecido en {margin_mode}.") if self.info else None
+
+    """ INFO """
+
+    async def is_market_open(self, symbol: str) -> bool:
+        return True
+
+    async def get_account_info(self):
+        leverage = self.broker.get_symbol_leverage(
+            self.main_symbol
+        )  if hasattr(self, '_leverages') else (
+            1 / self.broker.margin
+        )
+        equity = self.broker.total_equity
+        pnl = equity - self.broker.initial_cash
+        return {
+            "equity": str(equity),
+            "balance": str(self.broker.cash),
+            "marginFree": str(self.broker.cash),
+            "leverage": leverage, 
+            "pnl": pnl,
+            "currency": 'USD',
+        }
+
+    async def get_instruments_info(self, symbol):
+        return {
+            "symbol": symbol,
+            "description": f"{symbol} - Simulated",
+            "digits": 2,
+            "tradeContractVolume": 1.0,
+            "tradeTickVolume": 0.01,
+            "tradeTickValue": 0.01,
+            "volumeMin": 0.01,
+            "volumeMax": 100000.0,
+            "volumeStep": 0.01,
+            "currencyBase": "USD",
+        }
+
+    async def get_position(self, symbol: str) -> dict:
+        position = self.broker.get_position_status(symbol)
+
+        if position and position.status == 'Open':
+            return {
+                "volume": float(position.volume),
+                "side": "Buy" if position.side == "Long" else "Sell",
+                "price": float(position.entry_price) if position.entry_price else 0.0,
+                "pnl": 0.0,
+            }
+        
+        # ← PROBLEMA: Cuando la posición no existe o está cerrada,
+        # retorna side='None' pero debería ser ''
+        return {
+            "volume": 0.0,
+            "side": "",  # ← Ya corregimos esto antes
+            "price": 0.0,
+            "pnl": 0.0,
+        }
+
+    async def get_all_orders(self, symbol: str) -> list:
+        """Obtiene todas las órdenes ordenadas por tiempo (más reciente al final)"""
+        orders = self.broker.get_all_orders_history()
+        result = []
+        
+        status_mapping = {
+            'New': 'Placed',
+            'Filled': 'Filled', 
+            'Cancelled': 'Cancelled',
+            'Untriggered': 'Placed',  # Cambio: Untriggered -> Placed
+            'CancelledByTpSlTsClear': 'Cancelled'
+        }
+
+        for order in orders:
+            if order.symbol == symbol.upper():
+                # Determinar tipo de orden basado en el ID y características
+                order_type = "Market"
+                if order.id.startswith("TP_"):
+                    order_type = "Limit"
+                elif order.id.startswith("SL_"):
+                    order_type = "Stop"
+                elif order.price:
+                    order_type = order.order_type
+                
+                # Determinar side
+                side = "Buy" if order.side in ["Buy", "Long"] else "Sell"
+                
+                # Determinar comment basado en el ID
+                comment = ""
+                if order.id.startswith("TP_"):
+                    comment = "PartialTakeProfit" if hasattr(order, 'is_partial') and order.is_partial else "FullTakeProfit"
+                elif order.id.startswith("SL_"):
+                    comment = "PartialStopLoss" if hasattr(order, 'is_partial') and order.is_partial else "FullStopLoss"
+                
+                mapped_status = status_mapping.get(order.status, order.status)
+
+                result.append({
+                    "orderId": order.id,
+                    "symbol": order.symbol,
+                    "side": side,
+                    "type": order_type,
+                    "volume": float(order.volume),
+                    "price": float(order.price) if order.price else 0.0,
+                    "sl": float(order.stop_loss) if order.stop_loss else 0.0,
+                    "tp": float(order.take_profit) if order.take_profit else 0.0,
+                    "time": int(order.created_at.astype('datetime64[ms]').astype('int64')),
+                    "status": mapped_status,
+                    "magic": 234000,
+                    "comment": comment,
+                })
+        
+        # Ordenar por tiempo (más antiguo primero, más reciente al final)
+        result.sort(key=lambda x: x['time'])
+        return result
+
+    async def get_new_orders(self, symbol: str) -> list:
+        """Obtiene órdenes con status Placed (ordenadas por tiempo)"""
+        all_orders = await self.get_all_orders(symbol)
+        return [o for o in all_orders if o["status"] == "Placed"]
+
+    async def get_order(self, symbol: str, order_id: str) -> dict:
+        """Obtiene información de una orden específica"""
+        all_orders = await self.get_all_orders(symbol)
+        matching_orders = [o for o in all_orders if o["orderId"] == order_id]
+        return matching_orders[0] if matching_orders else None
+
+    async def get_closed_pnl(self, symbol: str, from_date: int = None, to_date: int = None) -> list:
+        """Obtiene el historial de PnL cerrado (ordenado por tiempo, más reciente al final)"""
+        closed_trades = self.broker.closed_trades
+        
+        if symbol:
+            closed_trades = [trade for trade in closed_trades if trade.symbol == symbol.upper()]
+        
+        result = []
+        
+        for trade in closed_trades:
+            side = "Buy" if trade.side in ['Buy', 'Long'] else "Sell"
+            
+            created_time = 0
+            if trade.entry_time is not None:
+                if hasattr(trade.entry_time, 'timestamp'):
+                    created_time = int(trade.entry_time.timestamp())
+                else:
+                    created_time = int(trade.entry_time.astype('datetime64[s]').astype(int))
+            
+            result.append({
+                "symbol": trade.symbol,
+                "pnl": float(trade.pnl) if trade.pnl is not None else 0.0,
+                "volume": float(trade.volume) if trade.volume else 0.0,
+                "price": float(trade.exit_price) if trade.exit_price else 0.0,
+                "time": created_time,
+                "commission": float(trade.commission) if trade.commission else 0.0,
+                "type": side,
+                "magic": 234000,
+            })
+        
+        # Ordenar por tiempo (más antiguo primero, más reciente al final)
+        result.sort(key=lambda x: x['time'])
+        return result
+
+    """ TRADING """
+
+    async def buy(self, symbol: str, volume: float, price: float = None, 
+                tp_price: float = None, sl_price: float = None, 
+                comment: str = "") -> dict:
+        
+        # ← IMPORTANTE: Solo pasar limit si price no es None
+        order_id = self.broker.place_order(
+            symbol=symbol,
+            type='Buy',
+            volume=volume,
+            limit=price if price is not None else None,  # ← Explícito
+            take_profit=tp_price,
+            stop_loss=sl_price
+        )
+        
+        return {"orderId": order_id}
+
+    async def sell(self, symbol: str, volume: float, price: float = None, 
+                 tp_price: float = None, sl_price: float = None, 
+                 comment: str = "") -> dict:
+        
+        # ← IMPORTANTE: Solo pasar limit si price no es None
+        order_id = self.broker.place_order(
+            symbol=symbol,
+            type='Sell',
+            volume=volume,
+            limit=price if price is not None else None,  # ← Explícito
+            take_profit=tp_price,
+            stop_loss=sl_price
+        )
+        
+        return {"orderId": order_id}
+
+    async def close_position(self, symbol: str) -> dict:
+        try:
+            order_id = self.broker.close_position(symbol)
+            print(f"Posición cerrada para {symbol}") if self.info else None
+            return {"orderId": order_id if order_id else "closed"}
+        except ValueError as e:
+            print(f"Error al cerrar posición: {e}") if self.info else None
+            return {"orderId": None}
+    
+    async def set_trading_stop(self, symbol: str, tp_price: float = None, sl_price: float = None, 
+                            tp_volume: float = None, sl_volume: float = None) -> dict:
+        """
+        Crea órdenes Limit/Stop reales que funcionan como TP/SL.
+        Automáticamente determina si es 'FullTakeProfit'/'FullStopLoss' o 'Partial...' según el volumen.
+        
+        Returns:
+            Lista de diccionarios con información de las órdenes creadas, o dict único si solo hay una
+        """
+        position = self.broker.get_position_status(symbol)
+        
+        if not position or position.status != 'Open':
+            raise ValueError(f"No hay posiciones abiertas para {symbol}")
+        
+        position_volume = position.volume
+        results = []
+        
+        # Diccionario para guardar info de parcialidad por order_id
+        if not hasattr(self, '_partial_orders'):
+            self._partial_orders = {}
+        
+        # Para TP
+        if tp_price is not None:
+            # Determinar volumen para TP
+            if tp_volume:
+                volume = float(tp_volume)
+            else:
+                volume = position_volume
+            
+            # Determinar comentario basado en volumen
+            if volume >= position_volume:
+                comment = "FullTakeProfit"
+                is_partial = False
+            else:
+                comment = "PartialTakeProfit"
+                is_partial = True
+            
+            # Determinar side opuesto
+            side = "Sell" if position.side == "Long" else "Buy"
+            
+            # Crear orden TP (Limit)
+            created_orders = self.broker.set_trading_stop(
+                symbol=symbol,
+                tp_price=tp_price,
+                tp_volume=volume
+            )
+            
+            if created_orders:
+                order_id = created_orders[0]['orderId'] if created_orders else ""
+                # Guardar info de parcialidad
+                self._partial_orders[order_id] = is_partial
+                
+                # Usar un ID de posición simulado o el primer order_id
+                position_id = order_id.split('_')[1] if '_' in order_id else str(hash(symbol))
+                
+                results.append({
+                    "position": int(position_id) if position_id.isdigit() else hash(symbol) & 0x7FFFFFFF,
+                    "side": side,
+                    "type": "Limit",
+                    "orderId": order_id,
+                    "comment": comment,
+                    "success": True,
+                    "retCode": 10009,
+                })
+        
+        # Para SL
+        if sl_price is not None:
+            # Determinar volumen para SL
+            if sl_volume:
+                volume = float(sl_volume)
+            else:
+                volume = position_volume
+            
+            # Determinar comentario basado en volumen
+            if volume >= position_volume:
+                comment = "FullStopLoss"
+                is_partial = False
+            else:
+                comment = "PartialStopLoss"
+                is_partial = True
+            
+            # Determinar side opuesto
+            side = "Sell" if position.side == "Long" else "Buy"
+            
+            # Crear orden SL (Stop)
+            created_orders = self.broker.set_trading_stop(
+                symbol=symbol,
+                sl_price=sl_price,
+                sl_volume=volume
+            )
+            
+            if created_orders:
+                order_id = created_orders[0]['orderId'] if created_orders else ""
+                # Guardar info de parcialidad
+                self._partial_orders[order_id] = is_partial
+                
+                position_id = order_id.split('_')[1] if '_' in order_id else str(hash(symbol))
+                
+                results.append({
+                    "position": int(position_id) if position_id.isdigit() else hash(symbol) & 0x7FFFFFFF,
+                    "side": side,
+                    "type": "Stop",
+                    "orderId": order_id,
+                    "comment": comment,
+                    "success": True,
+                    "retCode": 10009,
+                })
+        
+        if len(results) == 1:
+            return results[0]
+        return results
+
+    async def cancel_order(self, symbol: str, order_id: str) -> dict:
+        symbol = self._validate_symbol(symbol)
+        
+        order_to_cancel = None
+        for order in self.broker.orders:
+            if order.symbol == symbol and order.id == order_id and order.status == 'New':
+                order_to_cancel = order
+                break
+        
+        if order_to_cancel:
+            order_to_cancel.status = 'Cancelled'
+            self.broker.orders.remove(order_to_cancel)
+            return {
+                "retCode": 10009,
+                "comment": "OK"
+            }
+        else:
+            return {
+                "retCode": 10033,
+                "comment": "Order not found"
+            }
+
+    async def cancel_all_orders(self, symbol: str) -> dict:
+        cancelled_count = 0
+        orders_to_remove = []
+        
+        for order in self.broker.orders:
+            if order.symbol == symbol.upper() and order.status == 'New':
+                order.status = 'Cancelled'
+                orders_to_remove.append(order)
+                cancelled_count += 1
+        
+        for order in orders_to_remove:
+            self.broker.orders.remove(order)
+        
+        return {"totalCancelled": cancelled_count}
+
+    # Métodos específicos para backtesting
+    def get_broker_summary(self):
+        return self.broker.get_summary()
+    
+    def get_trades_history(self):
+        return self.broker.get_all_trades_history()
+    
+    def get_closed_trades(self):
+        return self.broker.closed_trades
+
+# class _OldDataProviderBT:
+    # __slots__ = ["__len", "__packet", "__cache", "__symbols"]
+    # # posible_resample_freqs=["1min", "3min", "5min", "15min", "30min", "1h", "2h", "4h", "6h", "8h", "12h", "1D", "1W", "1ME", "1YE"]
+
+    # def __init__(self, packet: Dict[str, DataOHLC]):
+    #     self.__cache = {} # :DataOHLC:BTCUSDT:5min:0:100
+    #     self.__len = len(packet[list(packet.keys())[0]])
+    #     self._validate_packet(packet) 
+    #     self.__packet = packet# packet: {"BTCUSDT": DataOHLC}}
+    #     self.__symbols = list(packet.keys())
+
+    # @property
+    # def packet(self) -> Dict[str, DataOHLC]:
+    #     return self.__packet
+
+    # @property
+    # def symbols(self) -> List[str]:
+    #     return self.__symbols
+
+    # def request(self, idx: int, symbol, timeframe: str = None, limit: int = None) -> Dict[str, DataOHLC]:
+    #     if limit is None:
+    #         limit = 100
+
+    #     # ORIGIN DATA
+    #     origin_data = self.__packet[symbol]
+    #     orig_content_copy = origin_data.content.copy()
+    #     orig_tf = origin_data.timeframe
+    #     orig_minutes_tf = origin_data.minutes
+
+    #     if timeframe is None:
+    #         timeframe = orig_tf
+
+    #     # Cache save
+    #     __cache_key__resample = f"request:DataOHLC:{symbol}:{timeframe}:{orig_minutes_tf}"
+    #     __cache_key__orig_idx_vals = f"request:array:{symbol}:{orig_tf}:{orig_minutes_tf}"
+    #     if __cache_key__resample not in self.__cache:
+    #         self.__cache[__cache_key__resample] = origin_data.resample(timeframe)  # ✅ Se ejecuta una sola vez, como antes
+    #     if __cache_key__orig_idx_vals not in self.__cache:
+    #         self.__cache[__cache_key__orig_idx_vals] = origin_data.index.astype("int64") 
+
+    #     # RESAMPLE DATA
+    #     resamp_data = self.__cache[__cache_key__resample]
+        
+    #     resample_minutes_tf = resamp_data.minutes 
+        
+    #     orig_index_ms = self.__cache[__cache_key__orig_idx_vals]
+        
+    #     group_resample_bars = count_available_resample_bars_nb(
+    #         orig_index_ms, idx, orig_minutes_tf, resample_minutes_tf
+    #     )
+
+    #     effective_limit = min(limit, group_resample_bars)
+    #     if effective_limit == 0:
+    #         raise ValueError("No hay datos suficientes")
+    #     start_idx = max(0, group_resample_bars - effective_limit)
+    #     filtered_data = resamp_data[start_idx:group_resample_bars]
+
+    #     #######################################
+    #     # MODIFICAR LAS BARRAS NO CERRADAS (sin cambios)
+    #     last_ms = orig_index_ms[idx-1]
+
+    #     MS_POR_MINUTO = 60_000
+    #     last_minute = (last_ms // MS_POR_MINUTO) % 60
+    #     rows_to_take = ((last_minute % resample_minutes_tf) // orig_minutes_tf) + 1 # anterior: (last_minute % resample_interval) + 1
+
+    #     if rows_to_take > idx:
+    #         rows_to_take = idx
+    #     slice_rows_to_take = slice(idx-rows_to_take, idx)
+
+    #     # CREAR UNA COPIA PROFUNDA DEL CONTENIDO ANTES DE MODIFICAR
+    #     filtered_data_content = filtered_data.content.copy()  # ← CAMBIO AQUÍ
+        
+    #     # Crear copias de los arrays numpy también
+    #     for key in filtered_data_content:
+    #         filtered_data_content[key] = filtered_data_content[key].copy()
+        
+    #     filtered_data_content["Open"][-1] = orig_content_copy["Open"][idx-rows_to_take]
+    #     filtered_data_content["High"][-1] = np.max(orig_content_copy["High"][slice_rows_to_take])
+    #     filtered_data_content["Low"][-1] = np.min(orig_content_copy["Low"][slice_rows_to_take])
+    #     filtered_data_content["Close"][-1] = orig_content_copy["Close"][idx-1]
+    #     filtered_data_content["Volume"][-1] = np.sum(orig_content_copy["Volume"][slice_rows_to_take])
+    #     filtered_data_content["Turnover"][-1] = np.sum(orig_content_copy["Turnover"][slice_rows_to_take])
+        
+    #     filtered_data.update(content=filtered_data_content)
+
+    #     return filtered_data
+
+    # def _validate_packet(self, data: dict) -> None:
+    #     for symbol in data.keys():
+    #         assert len(data[symbol]) == self.__len, f"Symbol {symbol} has different length"
 
 class _CryptoBacktestSesh:
     """Simulador de sesión para backtesting que mantiene compatibilidad con Strategy"""
@@ -1242,12 +2125,12 @@ class _CryptoBacktestSesh:
         if not self.warmup_completed and self.current_index >= self.warmup_period:
             self.warmup_completed = True
         
-        # Obtener timestamp del índice actual de los datos
-        current_timestamp = self.data_provider.packet[self.main_symbol].index[self.current_index] # TODO : dp
+        # Obtener timestamp del índice actual de los datos - usar current_index directamente
+        current_timestamp = self.data_provider.packet[self.main_symbol].index[self.current_index]
         # Actualizar timestamp en el broker
         self.broker.current_timestamp = current_timestamp
 
-        #  ACCESO RÁPIDO
+        #  ACCESO RÁPIDO - usar current_index directamente
         idx = self.current_index
         for symbol in self.data_provider.symbols:            
             # Actualizar broker con datos de mercado
@@ -1255,7 +2138,7 @@ class _CryptoBacktestSesh:
 
             self.broker.update_market(symbol, filtered_content_dict)
 
-        #  Actualizar equity curve (solo una línea)
+        #  Actualizar equity curve (solo una línea) - usar current_index directamente
         self._equity_curve[self.current_index] = self.broker.total_equity
         
         self.current_index += 1
@@ -1357,7 +2240,9 @@ class _CryptoBacktestSesh:
     def now(self) -> pd.Timestamp:
         """Obtiene el timestamp del bar actual con conversión de timezone solo si se especifica"""
         # TODO: que data_provider devuelva mejor una pd.timestamp en vez de un numpy.datetime64
-        numpy_datetime = self.data_provider.request(idx=self.current_index, symbol=self.main_symbol, limit=1).index[-1]
+        # Ajustar índice para evitar out-of-bounds
+        idx = max(0, min(self.current_index - 1, self.data_length - 1))
+        numpy_datetime = self.data_provider.request(idx=idx, symbol=self.main_symbol, limit=1).index[-1]
         return numpy_datetime.astype("M8[ms]").astype("O") # objeto datetime de python
 
     @property
@@ -1370,21 +2255,29 @@ class _CryptoBacktestSesh:
     async def get_kline(self, symbol: str, timeframe: str = "1D", start: str = None, 
                     end: str = None, limit: int = None, category: str = "linear") -> list:
         """Simula get_kline con soporte multi-símbolo y filtros mejorados"""
-        return self.data_provider.request(idx=self.current_index, symbol=symbol, timeframe=timeframe, limit=limit).klines 
+        # Ajustar índice para evitar out-of-bounds
+        idx = max(0, min(self.current_index - 1, self.data_length - 1))
+        return self.data_provider.request(idx=idx, symbol=symbol, timeframe=timeframe, limit=limit).klines 
 
     async def get_data(self, symbol: str, timeframe: str, start: str = None, end: str = None, 
                     limit: int = None, tz: str = None, category: str = "linear") -> DataOHLC:
         """Devuelve los datos históricos con soporte multi-símbolo y filtros completos"""
-        return self.data_provider.request(idx=self.current_index, symbol=symbol, timeframe=timeframe, limit=limit)
+        # Ajustar índice para evitar out-of-bounds
+        idx = max(0, min(self.current_index - 1, self.data_length - 1))
+        return self.data_provider.request(idx=idx, symbol=symbol, timeframe=timeframe, limit=limit)
 
     async def get_last_price(self, symbol: str) -> float: # TODO: quitar limite 2 y poner limite 1
         """Obtiene el último precio del símbolo especificado"""
-        return self.data_provider.request(idx=self.current_index, symbol=symbol, limit=1).Close[-1]
+        # Ajustar índice para evitar out-of-bounds
+        idx = max(0, min(self.current_index - 1, self.data_length - 1))
+        return self.data_provider.request(idx=idx, symbol=symbol, limit=1).Close[-1]
  
     async def get_time(self, tz: str = None) -> pd.Timestamp:
         """Obtiene el timestamp del bar actual con conversión de timezone solo si se especifica"""
         # TODO: que data_provider devuelva mejor una pd.timestamp en vez de un numpy.datetime64
-        numpy_datetime = self.data_provider.request(idx=self.current_index, symbol=self.main_symbol, limit=1).index[-1]
+        # Ajustar índice para evitar out-of-bounds
+        idx = max(0, min(self.current_index - 1, self.data_length - 1))
+        numpy_datetime = self.data_provider.request(idx=idx, symbol=self.main_symbol, limit=1).index[-1]
         return numpy_datetime.astype("M8[ms]").astype("O") # objeto datetime de python
 
     """ CONFIGURATION """    # Métodos CONFIGURATION (uso recomendable en el metodo 'init()')
@@ -2016,7 +2909,7 @@ class Backtest:
         self._total_bars = len(packet)
         self._strategy_obj = strategy
         self._warmup = max(0, warmup)  # Asegurar que no sea negativo
-        
+
         # Procesar el parámetro data según su tipo
         # processed_data = self._process_data_parameter(packet)
         self._packet = packet
@@ -2029,12 +2922,12 @@ class Backtest:
             raise ValueError(f"El período de warmup ({self._warmup}) no puede ser mayor o igual al número de barras disponibles ({self._packet_data_length})")
         
         # Crear sesión de backtest con warmup
-        self._sim_sesh = _CryptoBacktestSesh(
+        self._sim_sesh = _BackTestSesh(
             packet=self._packet,
             cash=cash,
             maker_fee=maker_fee,
             taker_fee=taker_fee,
-            # margin=margin,
+            margin=margin,
             margin_mode=margin_mode,
             mae_mfe_metric_type=mae_mfe_metric_type,
             tz=tz,
@@ -2086,12 +2979,12 @@ class Backtest:
         """Ejecuta el backtest completo con barra de progreso avanzada"""
 
         # Crear sesión de backtest con warmup
-        self._sim_sesh = _CryptoBacktestSesh(
+        self._sim_sesh = _BackTestSesh(
             packet=self._packet,
             cash=self._cash,
             maker_fee=self._maker_fee,
             taker_fee=self._taker_fee,
-            # margin=margin,
+            margin=self._margin,
             margin_mode=self._margin_mode,
             mae_mfe_metric_type=self._mae_mfe_metric_type,
             tz=self._tz,
@@ -2213,8 +3106,10 @@ class Backtest:
             def critical(self, msg, *args, **kwargs): pass
             def setLevel(self, level): pass
         async def _sleep_function_null(self, seconds): pass
+        def _beep_function_null(self, f: int | list = [500], t: int | list = [40]): pass
         # Sobrescribir
         self._strategy_obj.sleep = _sleep_function_null
+        self._strategy_obj.beep = _beep_function_null
         self._strategy_obj.logger = _logger_wrapper_null() if not log else self._strategy_obj.logger # Desactivar los logs
 
         stats = asyncio.run(self._run(pbar=pbar, **params))
@@ -2306,7 +3201,24 @@ class Backtest:
         # Encontrar el mejor resultado
         results.sort(key= lambda x: x['score'], reverse=is_maximizing)
         best_stats_result = results[0]
-        
+
+        # Guardar los resultados en csv
+        results_csv = []
+        for r in results:
+            s = r['stats']
+            # filtrar solo los valores que son int, float, str, bool
+            filter_stats = s[s.apply(lambda x: isinstance(x, (int, float, str, bool)))]
+            # los parametros
+            # filter_stats["params"] = ', '.join([f"{k}={v}" for k,v in s._strategy.params.items()])
+            filter_stats["params"] = s._strategy.params
+            results_csv.append(filter_stats)
+        results_csv = pd.DataFrame(results_csv)
+        stgy_name = self._strategy_obj.__name__
+        results_csv.to_csv(
+            f'Optimization_{stgy_name}.csv', 
+            index=False
+        )
+            
         # Preparar resultado final
         final_stats_result = best_stats_result['stats'].copy()
         final_stats_result = final_stats_result.set_highlight_params(
@@ -2436,7 +3348,6 @@ class Backtest:
         )
 
 
-
 def run_backtests(backtests: list[Backtest], pbar=True, pbar_desc=None, log=False, return_exceptions=False) -> list[Stats | Exception]:
     """Permite ejecutar uno o mas backtestings en Paralelo"""
 
@@ -2474,6 +3385,4 @@ def run_backtests(backtests: list[Backtest], pbar=True, pbar_desc=None, log=Fals
     print("\033[K", end="") 
 
     return results # [stats]
-
-
 

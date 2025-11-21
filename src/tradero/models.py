@@ -7,9 +7,14 @@ import asyncio
 from tradero.lib import timeframe2minutes, minutes2timeframe, find_minutes_timeframe
 from tradero._util import _as_str, BacktestLogger
 import logging
+import sounddevice as sd
 from pathlib import Path
 from pintar import HEX
 from pintar.logging import Theme, PintarStreamHandler, PintarFileHandler
+
+# TODO: Pasar a algun submodulo y tambien una funcion 'beep' para que el metodo 'beep' de strategy use esa funcion
+sd.default.latency = ('low', 'low')
+sd.default.blocksize = 256
 
 """
     Una Sesh debe tener las siguientes funciones: 
@@ -38,6 +43,228 @@ class _Array(np.ndarray):
         """Convierte el array actual a una Serie de pandas con el índice almacenado."""
         return pd.Series(self, index=self.index)
 
+# class DataOHLC:
+    # """
+    # Acceso optimizado a datos OHLCV usando NumPy para operaciones rápidas.
+    # Proporciona acceso a columnas como arrays numpy con caché para mejor performance.
+    # """ 
+    # __slots__ = ["symbol", "__content", "__len", "__cache", "__arrays", "__timeframe", "__minutes_tf", "__kwargs"]
+
+    # def __init__(self, content: Dict[str, list], timeframe: str = None, symbol=None, **kwargs):
+    #     """ content: dict con las culmas o h l c v datetime"""
+    #     self.__cache = {}
+    #     self.__content = None # en update()
+    #     self.__len = None # en update()
+    #     self.__arrays: Dict[str, _Array] = {}
+    #     self.update(content)
+    #     self.__timeframe = timeframe
+    #     self.__minutes_tf = None
+    #     self.symbol = symbol 
+
+    #     for key, value in kwargs.items():
+    #         setattr(self, key, value)
+
+    # def update(self, content: Dict[str, list]):
+    #     """Actualiza los arrays internos desde el DataFrame."""
+    #     self.__cache = {}
+    #     self.__content = content.copy()
+    #     self.__arrays["__index"] = np.array(content['datetime'], dtype="datetime64[ms]")
+    #     self.__arrays["Open"] = np.array(content["Open"])
+    #     self.__arrays["High"] = np.array(content["High"])
+    #     self.__arrays["Low"] = np.array(content["Low"])
+    #     self.__arrays["Close"] = np.array(content["Close"])
+    #     self.__arrays["Volume"] = np.array(content["Volume"])
+    #     self.__arrays["Turnover"] = np.array(content["Turnover"])
+
+    #     self.__len = len(self.__arrays["__index"])
+
+    # def resample(self, timeframe: str) -> 'DataOHLC':
+    #     """
+    #     Resamplea los datos a un intervalo diferente.
+    #     """
+    #     freq = timeframe
+        
+    #     df = pd.DataFrame(self.__content.copy()).set_index('datetime')
+    #     df.sort_index(inplace=True)
+
+    #     # Resamplear OHLC exactamente como resample_ohlc_indicator
+    #     resampler = df.resample(freq)
+    #     ohlc_resampled = resampler.agg({
+    #         'Open': 'first',
+    #         'High': 'max', 
+    #         'Low': 'min',
+    #         'Close': 'last',
+    #         'Volume': 'sum',
+    #         'Turnover': 'sum',
+    #     })
+
+    #     # Convertir a content dict
+    #     dict_with_data_resampled = ohlc_resampled.dropna().reset_index().to_dict(orient="list")
+    #     return DataOHLC(
+    #         content = dict_with_data_resampled, 
+    #         timeframe = freq, 
+    #         symbol = self.symbol,
+    #     )
+
+    # def copy(self) -> 'DataOHLC':
+    #     """Crea una copia profunda del objeto Data."""
+    #     return DataOHLC(self.__content.copy(), self.__timeframe, self.symbol)
+
+    # def __get_array(self, key: str) -> _Array:
+    #     """Obtiene un array desde el caché o lo carga si no está."""
+    #     return self.__arrays[key]
+
+    # def __len__(self) -> int:
+    #     """Longitud actual de los datos."""
+    #     return self.__len
+
+    # def __repr__(self) -> str:
+    #     # i = min(self.__len, len(self.__df)) - 1
+    #     i = self.__len - 1
+    #     start_index = self.index[0]
+    #     end_index = self.index[i]
+    #     # items = ', '.join(f'{k}={v:.2f}' if isinstance(v, (float, np.floating)) else f'{k}={v}'
+    #     #                   for k, v in self.__df.iloc[i].items())
+    #     return f"<'{self.symbol}': timeframe={self.__timeframe}, len={self.__len}, start='{start_index}', end='{end_index}')>"
+
+    # def __getitem__(self, key):
+    #     """Dictionary-style access to arrays with support for slicing."""
+    #     if isinstance(key, slice):
+    #         # Evitar crear un nuevo objeto si el slice es completo
+    #         if key.start is None and key.stop is None and key.step is None:
+    #             return self
+    #         # Create a new _Data object with sliced data
+    #         # sliced_dict = {col: arr[key] for col, arr in self.__content.items()}
+    #         sliced_dict = {}
+    #         sliced_dict['datetime'] = self.index[key]
+    #         sliced_dict['Open'] = self.Open[key]
+    #         sliced_dict['High'] = self.High[key]
+    #         sliced_dict['Low'] = self.Low[key]
+    #         sliced_dict['Close'] = self.Close[key]
+    #         sliced_dict['Volume'] = self.Volume[key]
+    #         sliced_dict['Turnover'] = self.Turnover[key]
+
+    #         data_obj = DataOHLC(sliced_dict, self.__timeframe, self.symbol)
+    #         return data_obj
+    #     elif isinstance(key, (int, np.integer)):
+    #         # Return a dictionary with values at the specified index
+    #         end_point = key+1 or None
+    #         sliced_dict = {}
+    #         sliced_dict['datetime'] = self.index[key:end_point]
+    #         sliced_dict['Open'] = self.Open[key:end_point]
+    #         sliced_dict['High'] = self.High[key:end_point]
+    #         sliced_dict['Low'] = self.Low[key:end_point]
+    #         sliced_dict['Close'] = self.Close[key:end_point]
+    #         sliced_dict['Volume'] = self.Volume[key:end_point]
+    #         sliced_dict['Turnover'] = self.Turnover[key:end_point]  
+
+    #         data_obj = DataOHLC(sliced_dict, self.__timeframe, self.symbol)
+    #         return data_obj
+    #     else:
+    #         # Handle string keys (column names)
+    #         return self.__get_array(key)
+
+    # # def __getattr__(self, key) -> _Array:
+    # #     """Acceso tipo atributo a las columnas OHLCV."""
+    # #     try:
+    # #         return self.__get_array(key)
+    # #     except KeyError:
+    # #         raise AttributeError(f"Columna '{key}' no encontrada") from None
+
+    # def __getattr__(self, key):
+    #     # Evitar recursión infinita
+    #     if key.startswith('_'):  # o cualquier condición que evite el bucle
+    #         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
+        
+    #     try:
+    #         return self.__get_array(key)
+    #     except KeyError:
+    #         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
+    
+
+    # # def __getstate__(self):
+    # #     # Retorna el estado que puede ser serializado
+    # #     return self.__dict__.copy()
+
+    # # def __setstate__(self, state):
+    # #     # Restaura el estado después de deserializar
+    # #     self.__dict__.update(state)
+
+    # @property
+    # def timeframe(self) -> str:
+    #     if self.__timeframe is None:
+    #         self.__timeframe = minutes2timeframe(find_minutes_timeframe(self.index))
+    #     return self.__timeframe
+
+    # @property
+    # def minutes(self) -> int:
+    #     if self.__minutes_tf is None:
+    #         self.__minutes_tf = timeframe2minutes(self.__timeframe)
+    #     return self.__minutes_tf
+
+    # @property
+    # def content(self) -> dict:
+    #     """Devuelve el DataFrame."""
+    #     return self.__content
+
+    # @property
+    # def df(self) -> pd.DataFrame:
+    #     """Devuelve el DataFrame."""
+    #     cache_key = 'df'
+    #     if cache_key not in self.__cache: # actualiza el caché
+    #         self.__cache[cache_key] = pd.DataFrame(self.__content).set_index("datetime")
+    #     return  self.__cache[cache_key]
+    #     # return pd.DataFrame(self.__content).set_index("datetime")
+
+    # @property 
+    # def klines(self) -> np.ndarray: 
+    #     cache_key = f'klines'
+    #     if cache_key not in self.__cache:
+    #         timestamps_ms = (self.df.index.values.astype(np.int64) // 10**6).reshape(-1, 1)
+    #         data_values = self.df.to_numpy()
+    #         self.__cache[cache_key] = np.hstack([timestamps_ms, data_values])
+    #     return self.__cache[cache_key]  
+
+    # @property
+    # def Open(self) -> _Array:
+    #     """Precios de apertura como array numpy."""
+    #     return self.__get_array('Open')
+
+    # @property
+    # def High(self) -> _Array:
+    #     """Precios máximos como array numpy."""
+    #     return self.__get_array('High')
+
+    # @property
+    # def Low(self) -> _Array:
+    #     """Precios mínimos como array numpy."""
+    #     return self.__get_array('Low')
+
+    # @property
+    # def Close(self) -> _Array:
+    #     """Precios de cierre como array numpy."""
+    #     return self.__get_array('Close')
+
+    # @property
+    # def Volume(self) -> _Array:
+    #     """Volúmenes como array numpy."""
+    #     return self.__get_array('Volume')
+
+    # @property
+    # def Turnover(self) -> _Array:
+    #     """Volúmenes como array numpy."""
+    #     return self.__get_array('Turnover')
+
+    # @property
+    # def index(self) -> pd.Index:
+    #     """Índice temporal del DataFrame."""
+    #     return self.__get_array('__index')
+
+    # @property
+    # def empty(self):
+    #     """Devuelve True si no hay datos disponibles."""
+    #     return self.__len == 0
+
 class DataOHLC:
     """
     Acceso optimizado a datos OHLCV usando NumPy para operaciones rápidas.
@@ -50,7 +277,7 @@ class DataOHLC:
         self.__cache = {}
         self.__content = None # en update()
         self.__len = None # en update()
-        self.__arrays: Dict[str, _Array] = {}
+        self.__arrays: Dict[str, np.ndarray] = {}
         self.update(content)
         self.__timeframe = timeframe
         self.__minutes_tf = None
@@ -72,6 +299,8 @@ class DataOHLC:
         self.__arrays["Turnover"] = np.array(content["Turnover"])
 
         self.__len = len(self.__arrays["__index"])
+
+        self.__arrays["__nbars"] = np.arange(1, self.__len + 1) # np.arange(1, self.__len + 1)  self.__arrays["__index"].astype(np.int64)
 
     def resample(self, timeframe: str) -> 'DataOHLC':
         """
@@ -105,7 +334,7 @@ class DataOHLC:
         """Crea una copia profunda del objeto Data."""
         return DataOHLC(self.__content.copy(), self.__timeframe, self.symbol)
 
-    def __get_array(self, key: str) -> _Array:
+    def __get_array(self, key: str) -> np.ndarray:
         """Obtiene un array desde el caché o lo carga si no está."""
         return self.__arrays[key]
 
@@ -159,12 +388,12 @@ class DataOHLC:
             # Handle string keys (column names)
             return self.__get_array(key)
 
-    # def __getattr__(self, key) -> _Array:
-    #     """Acceso tipo atributo a las columnas OHLCV."""
-    #     try:
-    #         return self.__get_array(key)
-    #     except KeyError:
-    #         raise AttributeError(f"Columna '{key}' no encontrada") from None
+    # def __getattr__(self, key) -> np.ndarray:
+        # """Acceso tipo atributo a las columnas OHLCV."""
+        # try:
+        #     return self.__get_array(key)
+        # except KeyError:
+        #     raise AttributeError(f"Columna '{key}' no encontrada") from None
 
     def __getattr__(self, key):
         # Evitar recursión infinita
@@ -178,12 +407,12 @@ class DataOHLC:
     
 
     # def __getstate__(self):
-    #     # Retorna el estado que puede ser serializado
-    #     return self.__dict__.copy()
+        # Retorna el estado que puede ser serializado
+        # return self.__dict__.copy()
 
     # def __setstate__(self, state):
-    #     # Restaura el estado después de deserializar
-    #     self.__dict__.update(state)
+        # # Restaura el estado después de deserializar
+        # self.__dict__.update(state)
 
     @property
     def timeframe(self) -> str:
@@ -221,32 +450,32 @@ class DataOHLC:
         return self.__cache[cache_key]  
 
     @property
-    def Open(self) -> _Array:
+    def Open(self) -> np.ndarray:
         """Precios de apertura como array numpy."""
         return self.__get_array('Open')
 
     @property
-    def High(self) -> _Array:
+    def High(self) -> np.ndarray:
         """Precios máximos como array numpy."""
         return self.__get_array('High')
 
     @property
-    def Low(self) -> _Array:
+    def Low(self) -> np.ndarray:
         """Precios mínimos como array numpy."""
         return self.__get_array('Low')
 
     @property
-    def Close(self) -> _Array:
+    def Close(self) -> np.ndarray:
         """Precios de cierre como array numpy."""
         return self.__get_array('Close')
 
     @property
-    def Volume(self) -> _Array:
+    def Volume(self) -> np.ndarray:
         """Volúmenes como array numpy."""
         return self.__get_array('Volume')
 
     @property
-    def Turnover(self) -> _Array:
+    def Turnover(self) -> np.ndarray:
         """Volúmenes como array numpy."""
         return self.__get_array('Turnover')
 
@@ -259,6 +488,10 @@ class DataOHLC:
     def empty(self):
         """Devuelve True si no hay datos disponibles."""
         return self.__len == 0
+
+    @property
+    def nbars(self) -> np.ndarray:
+        return self.__get_array('__nbars')
 
 class Strategy:
     """ Clase base para estrategias de trading en Live""" 
@@ -369,7 +602,7 @@ class Strategy:
         file_handler = PintarFileHandler(log_save_path, theme=theme)
         
         # Establecer niveles de filtro para cada manejador
-        stream_handler.setLevel(_SIGNAL_LEVEL) 
+        stream_handler.setLevel(_PERF_LEVEL) 
         file_handler.setLevel(_PERF_LEVEL) 
 
         # Añadir los manejadores al logger
@@ -478,6 +711,9 @@ class Strategy:
         """
         return self.sesh
 
+    def get_status(self):
+        return self.__status
+
     def start(self):
         self.logger.warning(f"on_live \033[92;1m°\033[0m")
         self.__status = "live" 
@@ -490,9 +726,27 @@ class Strategy:
         self.logger.warning(f"waiting \033[93m°\033[0m")
         self.__status = "waiting"
 
+    def beep(self, f=440, d=200, volume=0.02):
+        """ 
+        Reproduce un sonido de frecuencia f por d milisegundos.
+        No se reproduce en Backtesting.
+        Args:
+            f (int, optional): Frecuencia en Hz. Defaults to 440.
+            d (int, optional): Duracion en ms. Defaults to 200.
+            volume (float, optional): Volumen del sonido. Defaults to 0.02.
+        """
+        if isinstance(f, int): f = [f]
+        if isinstance(d, int): d = [d] 
+        for f, d in zip(f, d):
+            fs = 44100
+            t = np.linspace(0, d / 1000, int(fs * d / 1000), endpoint=False)
+            wave = np.sin(2 * np.pi * f * t) * volume
+            sd.play(wave, fs, blocking=True)
+            # sd.wait()
+
     # def update(self):
-    #     # TODO: guardar reporte de la estrategia 
-    #     pass
+        # TODO: guardar reporte de la estrategia 
+        # pass
 
     async def sleep(self, seconds: int):
         """ Pausa la ejecucion de la estrategia por un tiempo en segundos """
@@ -533,10 +787,11 @@ class Strategy:
 
         # identificar el timeframe de los datos del indicador
         # print(f"data.index: {data.index} core 1373 _save_bp_indicator_in_sesh_only_once")
-        indicator_data_timeframe = find_minutes_timeframe(data.index)
+        # indicator_data_timeframe = find_minutes_timeframe(data.index)
+        indicator_data_minutes_timeframe = data.minutes
 
         # Crear el tag idetificador 
-        str_timeframe = f"{minutes2timeframe(indicator_data_timeframe)}"
+        str_timeframe = f"{minutes2timeframe(indicator_data_minutes_timeframe)}"
         str_name = obj.__name__
         str_kwargs = " ".join((map(lambda x: f"{x[1]}", (kwargs.items()))))
 
@@ -557,10 +812,6 @@ class Strategy:
     @property
     def name(self):
         return self.__class__.__name__
-
-    @property
-    def status(self):
-        return self.__status
 
     @property
     def is_closed(self):
@@ -739,33 +990,6 @@ class CryptoSesh(ABC):
     async def get_account_info(self):
         """
             Obtiene información de la cuenta de trading.
-        """
-        pass
-    
-    @abstractclassmethod
-    async def get_balance(self, coin: str = "USDT", account_type: str = None):
-        """
-            Obtiene el balance de una moneda específica en la cuenta.
-            
-            Args:
-                coin: Símbolo de la moneda (default: USDT)
-                account_type: Tipo de cuenta a consultar (default: self.account_type)
-                
-            Returns:
-                dict: Balance y detalles de la moneda consultada
-        """
-        pass
-    
-    @abstractclassmethod
-    async def get_position_status(self, symbol) -> dict:
-        """
-            Obtiene el estado de la posición actual para un par de trading.
-
-            Args:
-                symbol: Símbolo del par de trading
-
-            Returns:
-                dict: Estado de la posición actual ({"size": size, "side": side})
         """
         pass
     
@@ -986,4 +1210,5 @@ class CryptoSesh(ABC):
                 dict: Respuesta de la cancelación de la orden.
         """
         pass
+
 

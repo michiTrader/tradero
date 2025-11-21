@@ -26,7 +26,7 @@ class StrategyLifecycleManager:
     async def handle_keyboard_interrupt(strategies: List[Strategy]) -> None:
         """Maneja la interrupción por teclado cerrando todas las estrategias."""
         for strategy in strategies:
-            if strategy.status == "stopped":
+            if strategy.get_status() == "stopped":
                 continue
             
             try:
@@ -107,7 +107,7 @@ class StrategyRunner:
     async def run_strategy_loop(self, strategy: Strategy) -> None:
         """Ejecuta el loop principal de una estrategia."""
 
-        while strategy.status == "live":
+        while strategy.get_status() == "live":
 
             try:
                 await strategy.on_live()

@@ -144,12 +144,15 @@ def adjust_size(size, step, min_size=0, max_size=float('inf')):
     size = round((size // step) * step, len(str(step).split('.')[-1]))
     # Respetar min y max
     size = max(min_size, min(size, max_size))
-    return size
-def adjust_leverage(notional, risk_limit: list[dict]):
+    return float(size)
+def adjust_leverage(notional, risk_limit):
     """ Ajusta el apalancamiento maximo basado en el size y el diccionario de limites de riesgo (risk_limit). """
     # Filtrar apalancamientos disponibles basados en el size
     # filter_available_leverages = list(map(lambda x: x["maxLeverage"] if (float(x["riskLimitValue"]) > size) else None, risk_limit))
-    leverages = dict(map(lambda x: (float(x["riskLimitValue"]), float(x["maxLeverage"])), risk_limit))
+
+    leverages = dict(
+        map(
+            lambda x: (float(x["riskLimitValue"]), float(x["maxLeverage"])), risk_limit))
 
     available_leverages = [val for key, val in leverages.items() if key > notional]
     # Dropear valores None y extraer el maximo apalancamiento
@@ -158,4 +161,5 @@ def adjust_leverage(notional, risk_limit: list[dict]):
     else:
         max_leverage = max(leverages.values())
     return int(max_leverage // 1)
+
 

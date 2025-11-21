@@ -440,6 +440,17 @@ wheels = [
 ]
 
 [[package]]
+name = "metatrader5"
+version = "5.0.5370"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e6/ea/171d531b241f80cf1a726ad8df2769e9a90eec91510f13ed4e7800e2d178/MetaTrader5-5.0.5370-cp313-cp313-win_amd64.whl", hash = "sha256:842492931fea9999c92de67c8dfb4e712f4b84bb0c23c1a2f1d8e998c186985d", size = 50461, upload-time = "2025-10-18T12:15:04.44Z" },
+]
+
+[[package]]
 name = "narwhals"
 version = "2.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -906,6 +917,21 @@ wheels = [
 ]
 
 [[package]]
+name = "sounddevice"
+version = "0.5.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cffi" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4e/4f/28e734898b870db15b6474453f19813d3c81b91c806d9e6f867bd6e4dd03/sounddevice-0.5.3.tar.gz", hash = "sha256:cbac2b60198fbab84533697e7c4904cc895ec69d5fb3973556c9eb74a4629b2c", size = 53465, upload-time = "2025-10-19T13:23:57.922Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/73/e7/9020e9f0f3df00432728f4c4044387468a743e3d9a4f91123d77be10010e/sounddevice-0.5.3-py3-none-any.whl", hash = "sha256:ea7738baa0a9f9fef7390f649e41c9f2c8ada776180e56c2ffd217133c92a806", size = 32670, upload-time = "2025-10-19T13:23:51.779Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/39/714118f8413e0e353436914f2b976665161f1be2b6483ac15a8f61484c14/sounddevice-0.5.3-py3-none-macosx_10_6_x86_64.macosx_10_6_universal2.whl", hash = "sha256:278dc4451fff70934a176df048b77d80d7ce1623a6ec9db8b34b806f3112f9c2", size = 108306, upload-time = "2025-10-19T13:23:53.277Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/74/52186e3e5c833d00273f7949a9383adff93692c6e02406bf359cb4d3e921/sounddevice-0.5.3-py3-none-win32.whl", hash = "sha256:845d6927bcf14e84be5292a61ab3359cf8e6b9145819ec6f3ac2619ff089a69c", size = 312882, upload-time = "2025-10-19T13:23:54.829Z" },
+    { url = "https://files.pythonhosted.org/packages/66/c7/16123d054aef6d445176c9122bfbe73c11087589b2413cab22aff5a7839a/sounddevice-0.5.3-py3-none-win_amd64.whl", hash = "sha256:f55ad20082efc2bdec06928e974fbcae07bc6c405409ae1334cefe7d377eb687", size = 364025, upload-time = "2025-10-19T13:23:56.362Z" },
+]
+
+[[package]]
 name = "stack-data"
 version = "0.6.3"
 source = { registry = "https://pypi.org/simple" }
@@ -952,11 +978,12 @@ wheels = [
 
 [[package]]
 name = "tradero"
-version = "0.4.7"
+version = "0.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "bokeh" },
     { name = "ipykernel" },
+    { name = "metatrader5" },
     { name = "numba" },
     { name = "numpy" },
     { name = "pandas" },
@@ -965,6 +992,7 @@ dependencies = [
     { name = "pybit" },
     { name = "pytest" },
     { name = "python-telegram-bot" },
+    { name = "sounddevice" },
     { name = "tqdm" },
 ]
 
@@ -972,6 +1000,7 @@ dependencies = [
 requires-dist = [
     { name = "bokeh", specifier = ">=3.8.0" },
     { name = "ipykernel", specifier = ">=6.30.1" },
+    { name = "metatrader5", specifier = ">=5.0.5370" },
     { name = "numba", specifier = ">=0.61.2" },
     { name = "numpy", specifier = ">=2.2.6" },
     { name = "pandas", specifier = ">=2.3.2" },
@@ -980,6 +1009,7 @@ requires-dist = [
     { name = "pybit", specifier = ">=5.11.0" },
     { name = "pytest", specifier = ">=8.4.2" },
     { name = "python-telegram-bot", specifier = ">=22.4" },
+    { name = "sounddevice", specifier = ">=0.5.3" },
     { name = "tqdm", specifier = ">=4.67.1" },
 ]
 

@@ -16,7 +16,7 @@ class Stats(pd.Series):
         self._highlight_params = list(params)
         self._highlight_style = {'fore': fore, 'bg': bg, 'style': style}
         return self
-    
+
     def __repr__(self):
         text = pd.Series.__repr__(self)
         
@@ -404,7 +404,7 @@ def _prepare_trades_dataframe(trades, strategy_instance):
     # Crear DataFrame desde objetos Trade
     trades_df = pd.DataFrame({
         'Direction': [getattr(t, 'direction', 'Long') for t in trades],
-        'Size': [t.size for t in trades],
+        'Volume': [t.volume for t in trades],
         'EntryPrice': [t.entry_price for t in trades],
         'ExitPrice': [t.exit_price for t in trades],
         'PnL': [getattr(t, 'pl', getattr(t, 'pnl', 0)) for t in trades],  # Mejorar extracción de PnL
@@ -434,7 +434,7 @@ def _prepare_trades_dataframe(trades, strategy_instance):
                 
                 # Calcular PnL si no está disponible
                 if row['PnL'] == 0:
-                    trades_df.at[idx, 'PnL'] = return_pct * row['Size'] * row['EntryPrice']
+                    trades_df.at[idx, 'PnL'] = return_pct * row['Volume'] * row['EntryPrice']
     
     trades_df['Duration'] = trades_df['ExitTime'] - trades_df['EntryTime']
     trades_df['Tag'] = [getattr(t, 'tag', '') for t in trades]
@@ -707,13 +707,13 @@ def _calculate_mae_mfe(s, equity: float, trades_df, metric_type = "ROI"):
         is_long = t.Direction == "Long"
         entry_price = t.EntryPrice
         up_distance, down_distance = (t.MaxPrice - entry_price), (entry_price - t.MinPrice)
-        size = t.Size
+        volume = t.Volume
         if metric_type == 'ROI':
             maes.append((down_distance / entry_price) if is_long else (up_distance / entry_price))
             mfes.append((up_distance / entry_price) if is_long else (down_distance / entry_price))
         elif metric_type == 'ROE':
-            maes.append((down_distance * size / cash) if is_long else (up_distance * size / cash))
-            mfes.append((up_distance * size / cash) if is_long else (down_distance * size / cash))
+            maes.append((down_distance * volume / cash) if is_long else (up_distance * volume / cash))
+            mfes.append((up_distance * volume / cash) if is_long else (down_distance * volume / cash))
 
     trades_df["Mae"] = maes
     trades_df["Mfe"] = mfes

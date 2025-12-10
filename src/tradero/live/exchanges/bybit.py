@@ -3,6 +3,7 @@ import pandas as pd
 import warnings
 import asyncio
 import time
+from datetime import datetime, timedelta
 from pybit.unified_trading import HTTP
 from tradero.models import DataOHLC, CryptoSesh
 from tradero.lib import timeframe2minutes
@@ -1304,10 +1305,15 @@ class BybitSesh(CryptoSesh):
             print(f"Error al obtener el apalancamiento para {symbol}: {e}")
             return 0
     # NEW
-    async def get_closed_pnl(self, symbol: str, from_date: int, to_date: int) -> list:
+    async def get_closed_pnl(self, symbol: str, from_date: datetime = None, to_date: datetime = None) -> list:
         """
             Obtiene el historial de pnl cerrado en formato estandarizado.
         """
+        if from_date is None:
+            from_date = datetime.now() - timedelta(days=90)
+        if to_date is None:
+            to_date = datetime.now()    
+
         list_result = await asyncio.get_event_loop().run_in_executor(
             None,
             lambda: self._session.get_closed_pnl(
@@ -1315,10 +1321,16 @@ class BybitSesh(CryptoSesh):
                 symbol=symbol
             )["result"]["list"]
         )
+        # list_result = list_result[::-1]
+        
+        # Convertir datetime a timestamp 
+        from_date_ts = int(from_date.timestamp() * 1000)
+        to_date_ts = int(to_date.timestamp() * 1000)
+
         # Filtrar por rango de tiempo
         list_result = [
             it for it in list_result 
-            if from_date <= int(it.get("updatedTime") or it.get("createdTime") or 0) <= to_date
+            if from_date_ts <= int(it.get("updatedTime") or it.get("createdTime")) <= to_date_ts
         ]
         out = []
         for it in list_result or []:
@@ -1337,6 +1349,7 @@ class BybitSesh(CryptoSesh):
                 "type": "Buy" if (it.get("side") or "").capitalize() == "Buy" else "Sell",
                 "magic": 0,
             })
+        out.sort(key=lambda x: x['time'])
         return out
 
     """ Trading """
@@ -1416,35 +1429,35 @@ class BybitSesh(CryptoSesh):
         return {"orderId": order_id}
       
     # async def _place_order(self,
-    #                 symbol,
-    #                 side, 
-    #                 qty,  
-    #                 price=None, 
-    #                 sl_price=None, 
-    #                 tp_price=None, 
-    #                 pct_sl=None, 
-    #                 pct_tp=None, 
-    #                 time_in_force="GTC",
-    #                 ) -> dict:
-    #     # ... existing code ...
-    #     response = await asyncio.get_event_loop().run_in_executor(
-    #         None,
-    #         lambda: self._session.place_order(
-    #             category=self._category,
-    #             symbol=symbol,
-    #             side=side,
-    #             orderType=order_type,
-    #             qty=str_qty,
-    #             price=price,
-    #             stopLoss=str_sl_price,
-    #             takeProfit=str_tp_price,
-    #             timeInForce=time_in_force,
-    #             triggerBy="LastPrice",
-    #         )
-    #     )
-    #     order_id = str(response["result"]["orderId"])
+        #             symbol,
+        #             side, 
+        #             qty,  
+        #             price=None, 
+        #             sl_price=None, 
+        #             tp_price=None, 
+        #             pct_sl=None, 
+        #             pct_tp=None, 
+        #             time_in_force="GTC",
+        #             ) -> dict:
+        # # ... existing code ...
+        # response = await asyncio.get_event_loop().run_in_executor(
+        #     None,
+        #     lambda: self._session.place_order(
+        #         category=self._category,
+        #         symbol=symbol,
+        #         side=side,
+        #         orderType=order_type,
+        #         qty=str_qty,
+        #         price=price,
+        #         stopLoss=str_sl_price,
+        #         takeProfit=str_tp_price,
+        #         timeInForce=time_in_force,
+        #         triggerBy="LastPrice",
+        #     )
+        # )
+        # order_id = str(response["result"]["orderId"])
 
-    #     return {"orderId": order_id}
+        # return {"orderId": order_id}
 
     async def sell(self,
             symbol: str,

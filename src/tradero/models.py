@@ -36,7 +36,7 @@ class _Array(np.ndarray):
     def __array_finalize__(self, obj):
         if obj is None:
             return
-        self.index = getattr(obj, 'index', None)
+        self.index = getattr(obj, 'index', None) # saw  
 
     @property
     def s(self):

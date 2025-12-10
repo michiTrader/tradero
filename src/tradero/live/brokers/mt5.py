@@ -729,11 +729,11 @@ class MT5Sesh:
         )
         return {"status": "not_supported", "message": "MT5 no soporta cambio de margen programático"}
     
-    async def get_closed_pnl(self, symbol: str, from_date=None, to_date=None) -> list:
+    async def get_closed_pnl(self, symbol: str, from_date: datetime = None, to_date: datetime = None) -> list:
         """Obtiene el historial de PnL cerrado para un símbolo, ordenado por tiempo (más reciente al final)"""
         def _get_deals(from_date, to_date):
             if from_date is None:
-                from_date = datetime.now() - pd.Timedelta(days=90)
+                from_date = datetime.now() - timedelta(days=90)
             if to_date is None:
                 to_date = datetime.now()    
             deals = mt5.history_deals_get(from_date, to_date, group=symbol)

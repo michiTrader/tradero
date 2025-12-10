@@ -1,11 +1,14 @@
 [project]
 name = "tradero"
-version = "0.5.1"
+version = "0.5.2"
 description = "Framework completo de trading algorítmico con backtesting, trading en vivo, indicadores técnicos personalizados y herramientas avanzadas de gestión de riesgo"
 readme = "README.md"
 authors = [
     { name = "michiTrader", email = "iden.c63@gmail.com" }
 ]
+
+
+
 requires-python = ">=3.13"
 dependencies = [
     "bokeh>=3.8.0",
@@ -13,7 +16,7 @@ dependencies = [
     "metatrader5>=5.0.5370",
     "numba>=0.61.2",
     "numpy>=2.2.6",
-    "pandas>=2.3.2",
+    "pandas>=2.3.2", 
     "pathlib>=1.0.1",
     "pintar",
     "pybit>=5.11.0",

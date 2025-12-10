@@ -2,7 +2,7 @@ from .core import Strategy, cross, crossover
 
 # from . import ta 
 
-__version__ = "0.5.1"
+__version__ = "0.5.2"
 __author__ = "michiTrader"
 __description__ = "Una librería Python para crear estrategias de trading"
 
